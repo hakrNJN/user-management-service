@@ -1,0 +1,115 @@
+import { inject, injectable } from 'tsyringe';
+import { Group } from '../../domain/entities/Group';
+import { GroupExistsError } from '../../domain/exceptions/UserManagementError';
+import { TYPES } from '../../shared/constants/types';
+import { BaseError } from '../../shared/errors/BaseError';
+import { AdminUser } from '../../shared/types/admin-user.interface';
+import { IGroupAdminService } from '../interfaces/IGroupAdminService';
+import { ILogger } from '../interfaces/ILogger';
+import { CreateGroupDetails, IUserMgmtAdapter } from '../interfaces/IUserMgmtAdapter';
+
+@injectable()
+export class GroupAdminService implements IGroupAdminService {
+    constructor(
+        @inject(TYPES.UserMgmtAdapter) private userMgmtAdapter: IUserMgmtAdapter,
+        @inject(TYPES.Logger) private logger: ILogger
+    ) {}
+
+    // Helper to check admin privileges (example)
+    private checkAdminPermission(adminUser: AdminUser, requiredRole = 'admin'): void {
+        if (!adminUser.roles?.includes(requiredRole)) {
+            this.logger.warn(`Admin permission check failed for group operation`, { adminUserId: adminUser.id, requiredRole });
+            throw new BaseError('ForbiddenError', 403, 'Admin privileges required for this operation.', true);
+        }
+         this.logger.debug(`Admin permission check passed for group operation`, { adminUserId: adminUser.id, requiredRole });
+    }
+
+    /**
+     * Creates a new group.
+     * @param adminUser - The admin user performing the operation.
+     * @param details - The details of the group to create.
+     * @returns A promise that resolves to the created Group.
+     * @throws {GroupExistsError} If a group with the same name already exists.
+     */
+    async createGroup(adminUser: AdminUser, details: CreateGroupDetails): Promise<Group> {
+        this.checkAdminPermission(adminUser);
+        this.logger.info(`Admin attempting to create group`, { adminUserId: adminUser.id, groupName: details.groupName });
+        try {
+            const cognitoGroup = await this.userMgmtAdapter.adminCreateGroup(details);
+            this.logger.info(`Admin successfully created group ${details.groupName}`, { adminUserId: adminUser.id });
+            return Group.fromCognitoGroup(cognitoGroup);
+        } catch (error: any) {
+             this.logger.error(`Admin failed to create group ${details.groupName}`, { adminUserId: adminUser.id, error });
+             // Re-throw specific errors mapped by adapter or handle here
+             if (error instanceof GroupExistsError) throw error; // Already mapped
+             throw error; // Re-throw others
+        }
+    }
+
+    /**
+     * Retrieves a group by its name.
+     * @param adminUser - The admin user performing the operation.
+     * @param groupName - The name of the group to retrieve.
+     * @returns A promise that resolves to the Group if found, null otherwise.
+     * @throws {Error} If an unexpected error occurs during the operation.
+     */
+    async getGroup(adminUser: AdminUser, groupName: string): Promise<Group | null> {
+        this.checkAdminPermission(adminUser);
+        this.logger.info(`Admin attempting to get group`, { adminUserId: adminUser.id, groupName });
+        try {
+            const cognitoGroup = await this.userMgmtAdapter.adminGetGroup(groupName);
+            if (!cognitoGroup) {
+                 this.logger.warn(`Admin get group: Group not found`, { adminUserId: adminUser.id, groupName });
+                 return null;
+            }
+            this.logger.info(`Admin successfully retrieved group ${groupName}`, { adminUserId: adminUser.id });
+            return Group.fromCognitoGroup(cognitoGroup);
+        } catch (error: any) {
+             this.logger.error(`Admin failed to get group ${groupName}`, { adminUserId: adminUser.id, error });
+             // Adapter returns null for NotFound, so only re-throw unexpected errors
+             throw error;
+        }
+    }
+
+    /**
+     * Lists all groups.
+     * @param adminUser - The admin user performing the operation.
+     * @param limit - The maximum number of groups to return.
+     * @param nextToken - A token for pagination.
+     * @returns A promise that resolves to an object containing an array of Groups and an optional nextToken.
+     * @throws {Error} If an unexpected error occurs during the operation.
+     */
+    async listGroups(adminUser: AdminUser, limit?: number, nextToken?: string): Promise<{ groups: Group[], nextToken?: string }> {
+        this.checkAdminPermission(adminUser);
+        this.logger.info(`Admin attempting to list groups`, { adminUserId: adminUser.id, limit, nextToken });
+        try {
+            const result = await this.userMgmtAdapter.adminListGroups(limit, nextToken);
+            const domainGroups = result.groups.map(g => Group.fromCognitoGroup(g));
+            this.logger.info(`Admin successfully listed ${domainGroups.length} groups`, { adminUserId: adminUser.id });
+            return { groups: domainGroups, nextToken: result.nextToken };
+        } catch (error: any) {
+             this.logger.error(`Admin failed to list groups`, { adminUserId: adminUser.id, error });
+             throw error;
+        }
+    }
+
+    /**
+     * Deletes a group by its name.
+     * @param adminUser - The admin user performing the operation.
+     * @param groupName - The name of the group to delete.
+     * @returns A promise that resolves when the group has been deleted.
+     * @throws {Error} If an unexpected error occurs during the operation.
+     */
+    async deleteGroup(adminUser: AdminUser, groupName: string): Promise<void> {
+        this.checkAdminPermission(adminUser);
+        this.logger.info(`Admin attempting to delete group`, { adminUserId: adminUser.id, groupName });
+        try {
+            // Add safety checks? Prevent deleting essential groups?
+            await this.userMgmtAdapter.adminDeleteGroup(groupName);
+            this.logger.info(`Admin successfully deleted group ${groupName}`, { adminUserId: adminUser.id });
+        } catch (error: any) {
+             this.logger.error(`Admin failed to delete group ${groupName}`, { adminUserId: adminUser.id, error });
+             throw error;
+        }
+    }
+}

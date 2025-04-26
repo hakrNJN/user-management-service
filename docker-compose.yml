@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  user-management-service:
+    build: .
+    container_name: user-management-service
+    ports:
+      - "3002:3000" # Map host port 3002 to container port 3000
+    environment:
+      NODE_ENV: production # Set to production for dockerized environment
+      PORT: 3000 # Port inside the container
+      LOG_LEVEL: info
+
+      # AWS Configuration - Replace with your actual values or use secrets/env file
+      AWS_REGION: us-east-1 # Or your desired region
+      # Note: For AWS credentials, it's best practice to use IAM roles (e.g., EC2 instance profile, ECS task role)
+      # or mount credentials securely, rather than hardcoding keys here.
+
+      # AWS Cognito Configuration - Replace with your actual values
+      COGNITO_USER_POOL_ID: # Your Cognito User Pool ID
+      COGNITO_CLIENT_ID:    # Your App Client ID
+      COGNITO_ISSUER:       # e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}
+      COGNITO_JWKS_URI:     # e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json
+
+      # Optional AWS CloudWatch Logging
+      # CW_LOG_GROUP_NAME: /ecs/user-management-service
+      # CW_LOG_STREAM_NAME: user-management-service-prod
+
+      # Optional CORS Configuration
+      # CORS_ORIGIN: https://your-admin-frontend.com
+
+      # Optional Circuit Breaker Configuration
+      # COGNITO_ADMIN_CIRCUIT_BREAKER_KEY: cognitoAdmin
+    restart: unless-stopped
+    # networks:
+    #   - my_network # Optional: Define networks if needed
+
+# Optional: Define networks
+# networks:
+#   my_network:
+#     driver: bridge
