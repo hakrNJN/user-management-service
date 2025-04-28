@@ -13,6 +13,9 @@ process.env.AWS_REGION = 'us-east-1';
 process.env.COGNITO_USER_POOL_ID = 'us-east-1_test';
 process.env.COGNITO_CLIENT_ID = 'test-client-id';
 
+process.env.COGNITO_JWKS_URI='https://cognito-idp.your-region.amazonaws.com/your_test_pool_id/.well-known/jwks.json'
+process.env.COGNITO_ISSUER='https://cognito-idp.your-region.amazonaws.com/your_test_pool_id'
+
 // DynamoDB Local Configuration
 process.env.DYNAMODB_ENDPOINT_URL = 'http://localhost:8000';
 process.env.DYNAMODB_TABLE_PREFIX = 'test_';
