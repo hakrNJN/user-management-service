@@ -30,8 +30,8 @@ export class ValidationError extends BaseError {
 }
 
 export class NotFoundError extends BaseError {
-    constructor(resource = 'Resource') {
-        super('NotFoundError', 404, `${resource} not found.`, true);
+    constructor(resource = 'Resource',details?: Record<string, any>) {
+        super('NotFoundError', 404, `${resource} not found.`, true, details);
     }
 }
 

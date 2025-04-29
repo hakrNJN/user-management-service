@@ -36,7 +36,6 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
     const issuer = configService.get('COGNITO_ISSUER'); // e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}
     const audience = configService.get('COGNITO_CLIENT_ID'); // Use the App Client ID expected for admin users
 
-    // --- FIX for Error 2322: Runtime Check ---
     // Ensure required configurations are present before creating the client
     if (!jwksUri) {
         logger.error('[AdminGuard Setup] Missing required configuration: COGNITO_JWKS_URI');
@@ -61,7 +60,6 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
         jwksRequestsPerMinute: 5, // Adjust rate limit as needed
     });
 
-    // --- FIX for Error 7006 (implicit any): Add types for header and callback ---
     function getKey(header: JwtHeader, callback: SigningKeyCallback): void {
         if (!header.kid) {
             // Provide a more specific error to the callback
@@ -92,34 +90,42 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
     // Return the actual middleware function
     return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
 
-        const nodeEnv = process.env.NODE_ENV || 'test';
+        const nodeEnv = process.env.NODE_ENV || 'development'; // Default to development if not set
         const authHeader = req.headers.authorization;
         const bypassTokenExpected = `Bearer ${TEST_ENV_BEARER_TOKEN}`;
-        if (nodeEnv === 'test') {
-            console.log('[AdminGuard] Test environment DETECTED.');
-            if (authHeader === bypassTokenExpected) {
-                console.log('[AdminGuard] >>> TEST TOKEN MATCHED! Bypassing JWT validation. <<<');
-                // Attach mock admin user
-                req.adminUser =  {
-                    id: 'admin-123', // Or userId if that's the identifier
-                    username: 'testadmin',
-                    roles: ['admin'], // Adjust roles as per your application
-                    // Only include properties defined in the actual AdminUser interface
-                } as AdminUser;
-                return next(); // Bypass JWT check
-            } else {
-                console.log('[AdminGuard] Test environment - Token MISMATCH or missing.');
-                // Fall through to standard validation (which will fail and return 401)
-            }
-        } else {
-            console.log('[AdminGuard] Not in test environment.');
-        }
+        const requestId = req.id || 'N/A'; // Get request ID if available
 
-        const requestId = req.id || 'N/A';
-        logger.debug(`[AdminGuard - ${requestId}] Checking admin authentication for ${req.method} ${req.path}`);
+        // --- Test Environment Bypass ---
+        // Check NODE_ENV FIRST for clarity and performance in non-test envs
+        if (nodeEnv === 'test') {
+            // Use DEBUG level for test-specific logic logs
+            logger.debug(`[AdminGuard - ${requestId}] Test environment detected. Checking for bypass token.`);
+            if (authHeader === bypassTokenExpected) {
+                logger.debug(`[AdminGuard - ${requestId}] TEST TOKEN MATCHED! Bypassing JWT validation.`);
+                // Attach mock admin user
+                req.adminUser = {
+                    id: 'test-admin-id-123', // Use a distinct ID for tests
+                    username: 'testadmin@bypass.local',
+                    roles: [requiredAdminRole], // Ensure the required role is present
+                    attributes: { // Minimal attributes for testing if needed
+                        'cognito:groups': [requiredAdminRole],
+                        sub: 'test-admin-id-123',
+                        email: 'testadmin@bypass.local'
+                    }
+                } as AdminUser; // Cast to satisfy type, ensure required fields are present
+                return next(); // Bypass JWT check and proceed
+            } else {
+                // Log mismatch only if in test env but token doesn't match
+                logger.debug(`[AdminGuard - ${requestId}] Test environment - Bypass token MISMATCH or missing. Proceeding with standard validation.`);
+                // Fall through to standard validation below (which will likely fail if no valid JWT is provided)
+            }
+        }
+        // --- End Test Environment Bypass ---
+
+        // logger.debug(`[AdminGuard - ${requestId}] Checking admin authentication for ${req.method} ${req.path}`); // Keep this if useful
 
         try {
-            const authHeader = req.headers.authorization;
+            // const authHeader = req.headers.authorization;
             if (!authHeader || !authHeader.startsWith('Bearer ')) {
                 logger.warn(`[AdminGuard - ${requestId}] Missing or invalid Authorization header.`);
                 throw new AuthenticationError('Authorization header is missing or invalid.');
@@ -136,7 +142,6 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
             try {
                 // Use Promise<JwtPayload> as we'll ensure it resolves only with that type
                 decodedPayload = await new Promise<JwtPayload>((resolve, reject) => {
-                    // --- FIX for Error 7006 (implicit any): Add types for err and decoded ---
                     jwt.verify(accessToken, getKey, {
                         audience: audience || undefined, // Pass audience only if defined, or handle missing config earlier
                         issuer: issuer, // Check if the token was issued by the correct authority
