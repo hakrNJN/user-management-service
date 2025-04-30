@@ -47,6 +47,8 @@ import { TYPES } from '../../../shared/constants/types';
 import { BaseError, NotFoundError, ValidationError } from '../../../shared/errors/BaseError';
 import { applyCircuitBreaker } from '../../resilience/applyResilience';
 
+
+
 @injectable()
 export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
     private cognitoClient: CognitoIdentityProviderClient;

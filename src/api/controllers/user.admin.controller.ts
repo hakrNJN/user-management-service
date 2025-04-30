@@ -37,16 +37,24 @@ export class UserAdminController {
             const createDto: CreateUserAdminDto = req.body;
             const newUser = await this.userAdminService.createUser(adminUser, createDto);
             res.status(HttpStatusCode.CREATED).json(newUser); // 201 Created
-        } catch (error) {
-            // Log safely using optional chaining in case getAdminUser threw the error
-            this.logger.error(`[UserAdminCtrl] Failed to create user`, { adminUserId: adminUser?.id, error });
-            next(error); // Pass the error (either from getAdminUser or service) to middleware
+        } catch (error: any) {
+            const errorName = error instanceof Error ? error.name : 'UnknownError';
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`[UserAdminCtrl] Failed to [operation name]`, {
+                adminUserId: adminUser?.id, // Use optional chaining if adminUser might be undefined here
+                // Add other relevant context like username/groupName if available
+                targetUsername: req.params?.username, // Example
+                errorName: errorName,
+                errorMessage: errorMessage,
+            });
+            next(error);
         }
     };
 
     // GET /admin/users/:username
     getUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         const adminUser = this.getAdminUser(req);
+        const targetUsername = req.params?.username; 
         try {
             const { username } = req.params;
             const user = await this.userAdminService.getUser(adminUser, username);
@@ -56,7 +64,14 @@ export class UserAdminController {
                 res.status(HttpStatusCode.OK).json(user);
             }
         } catch (error) {
-            this.logger.error(`[UserAdminCtrl] Failed to get user ${req.params?.username}`, { adminUserId: adminUser.id, error });
+            const errorName = error instanceof Error ? error.name : 'UnknownError';
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`[UserAdminCtrl] Failed to get user ${targetUsername}`, { // Use operation name
+                adminUserId: adminUser.id, // Safe to use adminUser here as getAdminUser would have thrown earlier if missing
+                targetUsername: targetUsername,
+                errorName: errorName,
+                errorMessage: errorMessage,
+            });
             next(error);
         }
     };
@@ -64,6 +79,7 @@ export class UserAdminController {
     // GET /admin/users
     listUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         let adminUser: AdminUser | undefined;
+        const targetUsername = req.params?.username; 
         try {
             adminUser = this.getAdminUser(req); // <<< MOVE INSIDE TRY
 
@@ -82,7 +98,14 @@ export class UserAdminController {
             const result = await this.userAdminService.listUsers(adminUser, queryOptions);
             res.status(HttpStatusCode.OK).json(result);
         } catch (error) {
-            this.logger.error(`[UserAdminCtrl] Failed to list users`, { adminUserId: adminUser?.id, error }); // Use optional chaining
+            const errorName = error instanceof Error ? error.name : 'UnknownError';
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`[UserAdminCtrl] Failed to List user ${targetUsername}`, { // Use operation name
+                adminUserId: adminUser?.id, // Safe to use adminUser here as getAdminUser would have thrown earlier if missing
+                targetUsername: targetUsername,
+                errorName: errorName,
+                errorMessage: errorMessage,
+            });
             next(error);
         }
     };
