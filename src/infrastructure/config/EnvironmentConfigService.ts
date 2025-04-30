@@ -54,6 +54,14 @@ export class EnvironmentConfigService implements IConfigService {
         return value as unknown as T;
     }
 
+
+    getOrThrow<T = string>(key: string): T {
+        const value = this.get(key);
+        if (!value ) {
+          throw new Error(`Configuration ${key} is required but not provided`);
+        }
+        return value as unknown as T;
+      }
     /**
      * Retrieves a configuration value, ensuring it's a number.
      * @param key - The configuration key.

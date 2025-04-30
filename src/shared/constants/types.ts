@@ -17,6 +17,7 @@ export const TYPES = {
     UserAdminController: Symbol.for('UserAdminController'),
     GroupAdminController: Symbol.for('GroupAdminController'),
     SystemController: Symbol.for('SystemController'),
-
+    RoleAdminService: Symbol.for('RoleAdminService'), // Service for role admin logic
+    PermissionAdminService: Symbol.for('PermissionAdminService'), // Service for permission admin logic
     // Add other tokens as needed
 };
