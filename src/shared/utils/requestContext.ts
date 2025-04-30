@@ -32,7 +32,6 @@ export const RequestContextUtil = {
     const context: RequestContext = {
       requestId,
       correlationId,
-      // FIX: Access 'id' from the AuthenticatedUser interface added by the guard
       userId: user?.id,
       startTime: Date.now(),
     };

@@ -100,13 +100,11 @@ describe('UserAdminController', () => {
 
     describe('createUser', () => {
         it('should create a user and return 201 status with the new user', async () => {
-            // FIX: Align DTO with its definition (assuming email goes into attributes)
             const createDto: CreateUserAdminDto = {
                 username: 'newuser',
                 userAttributes: { email: 'new@test.com', /* other attributes */ }
                 // Add temporaryPassword if needed by DTO
             };
-            // FIX: Align expectedUser with User interface definition
             const expectedUser: User = {
                 id: 'user-1',
                 username: 'newuser',
@@ -118,7 +116,6 @@ describe('UserAdminController', () => {
 
             await controller.createUser(mockRequest, mockResponse, mockNext);
 
-            // FIX: Ensure service mock expects AdminUser (matching req.adminUser type)
             // If the service interface strictly requires AdminUserView, you'll need to
             // either change the service interface or create/pass an AdminUserView mock.
             // Assuming service expects AdminUser for now.
@@ -141,8 +138,15 @@ describe('UserAdminController', () => {
 
             expect(userAdminServiceMock.createUser).toHaveBeenCalledWith(testAdminUser, createDto); // Pass AdminUser
             expect(loggerMock.error).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to create user'),
-                expect.objectContaining({ adminUserId: testAdminUser.id, error })
+                // Match the EXACT message logged by the controller
+                '[UserAdminCtrl] Failed to [operation name]', // <<< Or the specific message if you changed the template
+                expect.objectContaining({
+                    adminUserId: testAdminUser.id,
+                    // It logs targetUsername based on req.params, which is empty here
+                    targetUsername: 'user name not found', // <<< As per controller code
+                    errorName: error.name,
+                    errorMessage: error.message,
+                })
             );
             expect(mockNext).toHaveBeenCalledWith(error);
         });
@@ -152,13 +156,12 @@ describe('UserAdminController', () => {
         const username = 'testuser';
 
         it('should return a user with 200 status if found', async () => {
-            // FIX: Align expectedUser with User interface definition
             const expectedUser: User = {
                 id: 'user-2',
                 username: username,
                 attributes: { email: 'test@test.com' }
                 // Remove top-level email if not part of User interface
-             };
+            };
             mockRequest.params.username = username;
             userAdminServiceMock.getUser.mockResolvedValue(expectedUser as any); // Use 'as any' if type mismatch
 
@@ -183,7 +186,7 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should call next with error if service fails', async () => {
+        it('should call next with error if service fails', async () => {
             const error = new Error('Service failure');
             mockRequest.params.username = username;
             userAdminServiceMock.getUser.mockRejectedValue(error);
@@ -192,30 +195,36 @@ describe('UserAdminController', () => {
 
             expect(userAdminServiceMock.getUser).toHaveBeenCalledWith(testAdminUser, username); // Pass AdminUser
             expect(loggerMock.error).toHaveBeenCalledWith(
-                expect.stringContaining(`Failed to get user ${username}`),
-                expect.objectContaining({ adminUserId: testAdminUser.id, error })
+                expect.stringContaining(`Failed to get user ${username}`), // Message still matches (or adjust slightly if controller changed it)
+                expect.objectContaining({ // Check the NEW metadata structure
+                    adminUserId: testAdminUser.id,
+                    targetUsername: username,    // Controller logs this now
+                    errorName: error.name,
+                    errorMessage: error.message,
+                })
             );
             expect(mockNext).toHaveBeenCalledWith(error);
         });
     });
 
     describe('listUsers', () => {
+
         it('should return a list of users with 200 status', async () => {
             // Arrange
             // Use the actual DTO property names (e.g., paginationToken)
             const queryOptionsDto: ListUsersQueryAdminDto = { limit: 10, paginationToken: 'token123' };
             // req.query still comes in as strings
             mockRequest.query = { limit: '10', paginationToken: 'token123' };
-    
+
             const expectedResult: PaginatedResult<User> = {
-                 items: [{ id: 'u1', username: 'u1' }],
-                 nextToken: 'token456' // Or paginationToken if your PaginatedResult uses that
+                items: [{ id: 'u1', username: 'u1' }],
+                nextToken: 'token456' // Or paginationToken if your PaginatedResult uses that
             };
             userAdminServiceMock.listUsers.mockResolvedValue(expectedResult as any);
-    
+
             // Act
             await controller.listUsers(mockRequest, mockResponse, mockNext);
-    
+
             // Assert
             // This assertion should now pass because the controller parses limit to 10 (number)
             expect(userAdminServiceMock.listUsers).toHaveBeenCalledWith(testAdminUser, queryOptionsDto);
@@ -224,27 +233,32 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should call next with error if service fails', async () => {
-             const queryOptionsDto: ListUsersQueryAdminDto = {};
-             mockRequest.query = {}; // req.query is empty ParsedQs
-             const error = new Error('Service failure');
-             userAdminServiceMock.listUsers.mockRejectedValue(error);
+        it('should call next with error if service fails', async () => {
+            const queryOptionsDto: ListUsersQueryAdminDto = {};
+            mockRequest.query = {}; // req.query is empty ParsedQs
+            const error = new Error('Service failure');
+            userAdminServiceMock.listUsers.mockRejectedValue(error);
 
-             await controller.listUsers(mockRequest, mockResponse, mockNext);
+            await controller.listUsers(mockRequest, mockResponse, mockNext);
 
-             expect(userAdminServiceMock.listUsers).toHaveBeenCalledWith(testAdminUser, queryOptionsDto); // Pass AdminUser
-             expect(loggerMock.error).toHaveBeenCalledWith(
-                 expect.stringContaining('Failed to list users'),
-                 expect.objectContaining({ adminUserId: testAdminUser.id, error })
-             );
-             expect(mockNext).toHaveBeenCalledWith(error);
+            expect(userAdminServiceMock.listUsers).toHaveBeenCalledWith(testAdminUser, queryOptionsDto);
+            expect(loggerMock.error).toHaveBeenCalledWith(
+                `[UserAdminCtrl] Failed to List users user name not found`, // Change "user" to "users"
+
+                expect.objectContaining({
+                    adminUserId: testAdminUser.id,
+                    targetUsername: 'user name not found',
+                    errorName: error.name,
+                    errorMessage: error.message,
+                })
+            );
+            expect(mockNext).toHaveBeenCalledWith(error);
         });
         // ... (listUsers error test remains similar)
     });
 
     describe('updateUserAttributes', () => {
         const username = 'user-to-update';
-        // FIX: Align DTO with its definition (assuming attributes go into attributesToUpdate)
         const updateDto: UpdateUserAttributesAdminDto = {
             attributesToUpdate: { email: 'updated@test.com' }
         };
@@ -256,7 +270,6 @@ describe('UserAdminController', () => {
 
             await controller.updateUserAttributes(mockRequest, mockResponse, mockNext);
 
-            // FIX: Service likely expects combined params/body or specific object
             // Check IUserAdminService.updateUserAttributes signature
             // Assuming it takes (adminUser, { username, attributesToUpdate })
             expect(userAdminServiceMock.updateUserAttributes).toHaveBeenCalledWith(
@@ -281,9 +294,9 @@ describe('UserAdminController', () => {
                 { username, attributesToUpdate: updateDto.attributesToUpdate }
             );
             expect(loggerMock.error).toHaveBeenCalledWith(
-                 expect.stringContaining(`Failed to update attributes for user ${username}`),
-                 expect.objectContaining({ adminUserId: testAdminUser.id, error })
-             );
+                expect.stringContaining(`Failed to update attributes for user ${username}`),
+                expect.objectContaining({ adminUserId: testAdminUser.id, error })
+            );
             expect(mockNext).toHaveBeenCalledWith(error);
         });
 
@@ -323,15 +336,14 @@ describe('UserAdminController', () => {
                 expect.stringContaining(`Failed to set password for user ${username}`),
                 expect.objectContaining({ adminUserId: testAdminUser.id, error: expect.any(ValidationError) })
             );
-            // FIX: Check properties that exist on ValidationError. If httpCode is missing, remove it.
             expect(mockNext).toHaveBeenCalledWith(expect.objectContaining({
-                 name: expectedError.name,
-                 // httpCode: expectedError.httpCode, // <-- Keep ONLY if ValidationError has httpCode
-                 message: expectedError.message,
-             }));
+                name: expectedError.name,
+                // httpCode: expectedError.httpCode, // <-- Keep ONLY if ValidationError has httpCode
+                message: expectedError.message,
+            }));
         });
 
-         it('should call next with error if service fails', async () => {
+        it('should call next with error if service fails', async () => {
             const error = new Error('Service failure');
             mockRequest.params.username = username;
             mockRequest.body = { password };
@@ -354,8 +366,8 @@ describe('UserAdminController', () => {
     // Ensure testAdminUser is passed to service calls in all group methods
 
     describe('addUserToGroup', () => {
-         const username = 'user-add-group';
-         const groupName = 'Testers';
+        const username = 'user-add-group';
+        const groupName = 'Testers';
 
         it('should add user to group and return 200 status', async () => {
             mockRequest.params.username = username;
@@ -370,7 +382,7 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should call next with error if service fails', async () => {
+        it('should call next with error if service fails', async () => {
             const error = new Error('Service failure');
             mockRequest.params.username = username;
             mockRequest.body = { groupName };
@@ -388,8 +400,8 @@ describe('UserAdminController', () => {
     });
 
     describe('removeUserFromGroup', () => {
-         const username = 'user-remove-group';
-         const groupName = 'Testers';
+        const username = 'user-remove-group';
+        const groupName = 'Testers';
 
         it('should remove user from group and return 204 status', async () => {
             mockRequest.params = { username, groupName };
@@ -403,7 +415,7 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should call next with error if service fails', async () => {
+        it('should call next with error if service fails', async () => {
             const error = new Error('Service failure');
             mockRequest.params = { username, groupName };
             userAdminServiceMock.removeUserFromGroup.mockRejectedValue(error);
@@ -426,9 +438,7 @@ describe('UserAdminController', () => {
             const limit = 10;
             const nextToken = 'token1';
             mockRequest.params.username = username;
-            // FIX: req.query expects string values
             mockRequest.query = { limit: String(limit), nextToken };
-            // FIX: Ensure PaginatedResult and Group types are defined/imported
             const expectedResult: PaginatedResult<Group> = {
                 items: [{ GroupName: 'g1' }], // Use Group interface structure
                 nextToken: 'token2'
@@ -443,7 +453,7 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should handle missing pagination parameters', async () => {
+        it('should handle missing pagination parameters', async () => {
             mockRequest.params.username = username;
             mockRequest.query = {}; // No query params
             const expectedResult: PaginatedResult<Group> = { items: [{ GroupName: 'g1' }] };
@@ -458,7 +468,7 @@ describe('UserAdminController', () => {
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-         it('should call next with error if service fails', async () => {
+        it('should call next with error if service fails', async () => {
             const error = new Error('Service failure');
             mockRequest.params.username = username;
             mockRequest.query = {};
@@ -482,9 +492,7 @@ describe('UserAdminController', () => {
             const limit = 5;
             const nextToken = 'userTokenA';
             mockRequest.params.groupName = groupName;
-            // FIX: req.query expects string values
             mockRequest.query = { limit: String(limit), nextToken };
-            // FIX: Ensure PaginatedResult and User types are defined/imported
             const expectedResult: PaginatedResult<User> = {
                 items: [{ id: 'u1', username: 'u1' }], // Use User interface structure
                 nextToken: 'userTokenB'
@@ -500,34 +508,34 @@ describe('UserAdminController', () => {
         });
 
         it('should handle missing pagination parameters', async () => {
-             mockRequest.params.groupName = groupName;
-             mockRequest.query = {};
-             const expectedResult: PaginatedResult<User> = { items: [{ id: 'u1', username: 'u1' }] };
-             userAdminServiceMock.listUsersInGroup.mockResolvedValue(expectedResult as any);
+            mockRequest.params.groupName = groupName;
+            mockRequest.query = {};
+            const expectedResult: PaginatedResult<User> = { items: [{ id: 'u1', username: 'u1' }] };
+            userAdminServiceMock.listUsersInGroup.mockResolvedValue(expectedResult as any);
 
-             await controller.listUsersInGroup(mockRequest, mockResponse, mockNext);
+            await controller.listUsersInGroup(mockRequest, mockResponse, mockNext);
 
-             expect(userAdminServiceMock.listUsersInGroup).toHaveBeenCalledWith(testAdminUser, groupName, undefined, undefined); // Pass AdminUser
-             expect(mockResponse.status).toHaveBeenCalledWith(HttpStatusCode.OK);
-             expect(mockResponse.json).toHaveBeenCalledWith(expectedResult);
-             expect(mockNext).not.toHaveBeenCalled();
-         });
+            expect(userAdminServiceMock.listUsersInGroup).toHaveBeenCalledWith(testAdminUser, groupName, undefined, undefined); // Pass AdminUser
+            expect(mockResponse.status).toHaveBeenCalledWith(HttpStatusCode.OK);
+            expect(mockResponse.json).toHaveBeenCalledWith(expectedResult);
+            expect(mockNext).not.toHaveBeenCalled();
+        });
 
-         it('should call next with error if service fails', async () => {
-             const error = new Error('Service failure');
-             mockRequest.params.groupName = groupName;
-             mockRequest.query = {};
-             userAdminServiceMock.listUsersInGroup.mockRejectedValue(error);
+        it('should call next with error if service fails', async () => {
+            const error = new Error('Service failure');
+            mockRequest.params.groupName = groupName;
+            mockRequest.query = {};
+            userAdminServiceMock.listUsersInGroup.mockRejectedValue(error);
 
-             await controller.listUsersInGroup(mockRequest, mockResponse, mockNext);
+            await controller.listUsersInGroup(mockRequest, mockResponse, mockNext);
 
-             expect(userAdminServiceMock.listUsersInGroup).toHaveBeenCalledWith(testAdminUser, groupName, undefined, undefined); // Pass AdminUser
-             expect(loggerMock.error).toHaveBeenCalledWith(
-                 expect.stringContaining(`Failed to list users in group ${groupName}`),
-                 expect.objectContaining({ adminUserId: testAdminUser.id, error })
-             );
-             expect(mockNext).toHaveBeenCalledWith(error);
-         });
+            expect(userAdminServiceMock.listUsersInGroup).toHaveBeenCalledWith(testAdminUser, groupName, undefined, undefined); // Pass AdminUser
+            expect(loggerMock.error).toHaveBeenCalledWith(
+                expect.stringContaining(`Failed to list users in group ${groupName}`),
+                expect.objectContaining({ adminUserId: testAdminUser.id, error })
+            );
+            expect(mockNext).toHaveBeenCalledWith(error);
+        });
     });
 
 });

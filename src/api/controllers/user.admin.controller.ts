@@ -43,7 +43,7 @@ export class UserAdminController {
             this.logger.error(`[UserAdminCtrl] Failed to [operation name]`, {
                 adminUserId: adminUser?.id, // Use optional chaining if adminUser might be undefined here
                 // Add other relevant context like username/groupName if available
-                targetUsername: req.params?.username, // Example
+                targetUsername: req.params?.username||'user name not found', // Example
                 errorName: errorName,
                 errorMessage: errorMessage,
             });
@@ -54,7 +54,7 @@ export class UserAdminController {
     // GET /admin/users/:username
     getUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         const adminUser = this.getAdminUser(req);
-        const targetUsername = req.params?.username; 
+        const targetUsername = req.params?.username||'user name not found'; 
         try {
             const { username } = req.params;
             const user = await this.userAdminService.getUser(adminUser, username);
@@ -68,7 +68,7 @@ export class UserAdminController {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger.error(`[UserAdminCtrl] Failed to get user ${targetUsername}`, { // Use operation name
                 adminUserId: adminUser.id, // Safe to use adminUser here as getAdminUser would have thrown earlier if missing
-                targetUsername: targetUsername,
+                targetUsername: targetUsername ,
                 errorName: errorName,
                 errorMessage: errorMessage,
             });
@@ -79,7 +79,7 @@ export class UserAdminController {
     // GET /admin/users
     listUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         let adminUser: AdminUser | undefined;
-        const targetUsername = req.params?.username; 
+        const targetUsername = req.params?.username||'user name not found'; 
         try {
             adminUser = this.getAdminUser(req); // <<< MOVE INSIDE TRY
 
@@ -100,7 +100,7 @@ export class UserAdminController {
         } catch (error) {
             const errorName = error instanceof Error ? error.name : 'UnknownError';
             const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error(`[UserAdminCtrl] Failed to List user ${targetUsername}`, { // Use operation name
+            this.logger.error(`[UserAdminCtrl] Failed to List users ${targetUsername}`, { // Use operation name
                 adminUserId: adminUser?.id, // Safe to use adminUser here as getAdminUser would have thrown earlier if missing
                 targetUsername: targetUsername,
                 errorName: errorName,

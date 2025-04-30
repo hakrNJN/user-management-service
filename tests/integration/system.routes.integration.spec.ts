@@ -92,7 +92,6 @@ describe('Integration Tests: System Routes (/api/system)', () => {
                 .expect('Content-Type', /json/)
                 .expect(200);
 
-            // --- ASSERTION FIX ---
             // Assert against the *actual* response from your controller
             expect(response.body).toHaveProperty('status', 'UP'); // Changed 'OK' to 'UP'
             expect(response.body).toHaveProperty('timestamp');
@@ -106,7 +105,6 @@ describe('Integration Tests: System Routes (/api/system)', () => {
                 .expect('Content-Type', /json/)
                 .expect(200);
 
-            // --- ASSERTION FIX ---
             // Assert against the *actual* response structure from your controller
             expect(response.body).toHaveProperty('environment', 'test'); // Changed 'nodeEnv' to 'environment'
             expect(response.body).toHaveProperty('nodeVersion'); // Check property exists

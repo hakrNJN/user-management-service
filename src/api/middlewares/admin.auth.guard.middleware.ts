@@ -50,7 +50,7 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
         // Decide if this is critical. If so, throw an error like above.
         // throw new Error('Server configuration error: Missing Client ID/Audience for admin authentication.');
     }
-    // --- End FIX ---
+
 
 
     const client: JwksClient = jwksClient({
@@ -167,7 +167,7 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
                         resolve(decoded); // Assert type after successful verification and type check
                     });
                 });
-                // --- End FIX ---
+
 
                 // Note: The check `if (typeof decodedPayload === 'string' || !decodedPayload)`
                 // from the original code is now handled *inside* the Promise callback,
