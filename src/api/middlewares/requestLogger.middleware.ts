@@ -34,18 +34,24 @@ export const createRequestLoggerMiddleware = (logger: ILogger): ((req: Request, 
         };
         logger.info(`--> ${req.method} ${req.originalUrl}`, requestMeta);
 
+        // Track if finish event has fired
+        let finished = false;
+        
         const logResponse = (eventType: 'finish' | 'close') => {
-             // Avoid logging 'close' if 'finish' already happened
-            if (eventType === 'close' && res.writableFinished) {
+            // Avoid logging 'close' if 'finish' already happened
+            if (eventType === 'close' && (finished || res.writableFinished)) {
                 return;
+            }
+            
+            // Mark as finished if this is the finish event
+            if (eventType === 'finish') {
+                finished = true;
             }
 
             const diff = process.hrtime(start);
             const duration = (diff[0] * 1e3 + diff[1] * 1e-6); // Duration in ms (keep as number)
             const statusCode = res.statusCode;
             const statusMessage = eventType === 'close' ? 'CLOSED' : statusCode;
-
-            const logLevel = statusCode >= 500 ? 'error' : (statusCode >= 400 ? 'warn' : 'info');
 
             const responseMeta = {
                 requestId,
@@ -57,7 +63,16 @@ export const createRequestLoggerMiddleware = (logger: ILogger): ((req: Request, 
                 eventType: eventType, // 'finish' or 'close'
             };
 
-            logger.info( `<-- ${req.method} ${req.originalUrl} ${statusMessage} ${duration.toFixed(3)}ms`, responseMeta);
+            const logMessage = `<-- ${req.method} ${req.originalUrl} ${statusMessage} ${duration.toFixed(3)}ms`;
+
+            // Choose log level based on status code
+            if (statusCode >= 500) {
+                logger.error(logMessage, responseMeta);
+            } else if (statusCode >= 400) {
+                logger.warn(logMessage, responseMeta);
+            } else {
+                logger.info(logMessage, responseMeta);
+            }
         };
 
         // Log response finish (successful completion)

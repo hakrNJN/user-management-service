@@ -120,6 +120,7 @@ describe('PermissionAdminService', () => {
             expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName);
             expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Successfully deleted permission'), expect.any(Object));
         });
+        
 
         it('should throw PermissionNotFoundError if repo.delete returns false', async () => {
             permissionRepo.delete.mockResolvedValue(false);

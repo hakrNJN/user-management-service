@@ -110,7 +110,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         }
 
         // 3. If deleted, cleanup assignments
-        // this.logger.info(`Permission ${permissionName} deleted from repository, attempting assignment cleanup...`, { adminUserId: adminUser.id });
+        this.logger.info(`Permission ${permissionName} deleted from repository, attempting assignment cleanup...`, { adminUserId: adminUser.id });
         try {
             await this.assignmentRepository.removeAllAssignmentsForPermission(permissionName);
             this.logger.info(`Successfully cleaned up assignments for deleted permission ${permissionName}`, { adminUserId: adminUser.id });

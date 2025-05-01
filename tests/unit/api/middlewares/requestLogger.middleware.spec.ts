@@ -183,15 +183,16 @@ describe('Request Logger Middleware', () => {
         );
     });
 
-     it('should NOT log response details on "close" event if response already finished', () => {
+    it('should NOT log response details on "close" event if response already finished', () => {
         mockResponse.statusCode = 200;
         middleware(mockRequest as Request, mockResponse as Response, mockNext);
-
+    
         // Simulate 'finish' then 'close'
         eventCallbacks['finish']();
-        // mockResponse.writableFinished = true; // Set writableFinished after 'finish'
+        // Note: We don't need to set mockResponse.writableFinished = true
+        // because the middleware now tracks this internally
         eventCallbacks['close']();
-
+    
         expect(logger.info).toHaveBeenCalledTimes(2); // Arrival + Finish
         expect(logger.warn).not.toHaveBeenCalled();
         expect(logger.error).not.toHaveBeenCalled(); // Close log should be skipped

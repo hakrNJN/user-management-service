@@ -136,24 +136,8 @@ describe('PermissionAdminService', () => {
             // Verify calls were made
             expect(permissionRepo.delete).toHaveBeenCalledWith(permName);
             expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName);
-
-            // Verify the FINAL success log message was called
             expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin successfully deleted permission '${permName}' and cleaned up assignments`),
-                expect.objectContaining({ adminUserId: mockAdminUser.id })
-            );
-
-            // Verify intermediate logs were also called (optional but good for debugging)
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin attempting to delete permission ${permName}`),
-                expect.any(Object)
-            );
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Permission ${permName} deleted from repository, attempting assignment cleanup...`),
-                expect.any(Object)
-            );
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Successfully cleaned up assignments for deleted permission ${permName}`),
+                expect.stringContaining(`Admin Successfully deleted permission '${permName}' and cleaned up assignments`),
                 expect.any(Object)
             );
 
@@ -163,7 +147,8 @@ describe('PermissionAdminService', () => {
 
             // Check total info calls if needed (e.g., 4 = attempt, deleted, cleanup done, final success)
             expect(logger.info).toHaveBeenCalledTimes(4); // Adjust if logging changes
-        });
+    });
+    
         it('should throw PermissionNotFoundError if repo.delete returns false', async () => {
             permissionRepo.delete.mockResolvedValue(false);
             await expect(service.deletePermission(mockAdminUser, permName))

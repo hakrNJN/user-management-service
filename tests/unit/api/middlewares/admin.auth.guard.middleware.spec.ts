@@ -1,4 +1,3 @@
-
 import { NextFunction, Request, Response } from 'express';
 import jwt, { GetPublicKeyOrSecret, JwtPayload, VerifyErrors } from 'jsonwebtoken';
 import { SigningKey } from 'jwks-rsa';
@@ -80,13 +79,14 @@ describe('Admin Auth Guard Middleware', () => {
         // Reset all mocks to fresh state
         jest.clearAllMocks();
         mockGetSigningKey.mockReset();
-        
+        mockJwtVerify.mockReset();
         // Clear individual logger method mocks
         logger.info.mockClear();
         logger.warn.mockClear();
         logger.error.mockClear();
         logger.debug.mockClear();
-        
+        configService.get.mockReset();
+        configService.getOrThrow.mockReset();
         // Set up config service mock
         configService.get.mockImplementation((key: string, defaultValue?: any) => {
             switch (key) {
@@ -138,21 +138,30 @@ describe('Admin Auth Guard Middleware', () => {
 
         // Set up JWT verify mock with successful callback
         mockJwtVerify.mockImplementation((token, getKeyFunc, options, callback) => {
-            // Ensure we're calling the callback correctly
+            // First check if callback is a function (important fix here)
             if (typeof callback === 'function') {
                 // THIS IS CRITICAL: Make sure we're passing a DEEP COPY of the payload
                 // to avoid any reference issues
                 const payloadCopy = JSON.parse(JSON.stringify(validDecodedPayload));
                 callback(null, payloadCopy);
             }
+            // If callback is not provided, this likely means wrong parameters are being passed
+            // For debugging, let's add a console message
+            else {
+                console.error('JWT verify mock called with wrong parameters. Callback is not a function:', 
+                    { callbackType: typeof callback });
+            }
         });
 
         // Execute middleware
         await middleware(mockRequest as Request, mockResponse as Response, mockNext);
+        
 
         // Verify next() was called without error
         expect(mockNext).toHaveBeenCalledTimes(1);
         expect(mockNext).toHaveBeenCalledWith();
+        
+        console.log("Actual logger.info calls:", logger.info.mock.calls); // Log calls made to logger.info
         
         // Verify the user was set correctly
         expect(mockRequest.adminUser).toBeDefined();
@@ -164,6 +173,7 @@ describe('Admin Auth Guard Middleware', () => {
         // Use a substring matcher to be more flexible with the exact message format
         expect(logger.info).toHaveBeenCalled();
         const infoCall = logger.info.mock.calls[0];
+        
         expect(infoCall[0]).toContain('Admin authentication successful');
         expect(infoCall[0]).toContain(validDecodedPayload.sub);
     });
@@ -277,15 +287,14 @@ describe('Admin Auth Guard Middleware', () => {
             callback(jwksError, undefined);
         });
 
-        mockJwtVerify.mockImplementation(
-            (token: string, getKey: GetPublicKeyOrSecret, options: jwt.VerifyOptions, callback: jwt.VerifyCallback | undefined) => {
-                if (callback) {
-                    callback(jwksError as VerifyErrors, undefined);
-                } else {
-                    throw jwksError;
-                }
+        // Setup JWT verify to pass the error through the callback
+        mockJwtVerify.mockImplementation((token, getKeyFunc, options, callback) => {
+            if (typeof callback === 'function') {
+                // The getKey function would call its callback with an error,
+                // which would then cause jwt.verify to call its callback with that error
+                callback(jwksError as VerifyErrors, undefined);
             }
-        );
+        });
 
         await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -299,8 +308,10 @@ describe('Admin Auth Guard Middleware', () => {
         expiredError.name = 'TokenExpiredError';
 
         // Simulate jwt.verify failing directly with TokenExpiredError
-        mockJwtVerify.mockImplementation((token, getKey, options, callback) => {
-            callback(expiredError, undefined);
+        mockJwtVerify.mockImplementation((token, getKeyFunc, options, callback) => {
+            if (typeof callback === 'function') {
+                callback(expiredError, undefined);
+            }
         });
 
         await middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -313,8 +324,10 @@ describe('Admin Auth Guard Middleware', () => {
         verifyError.name = 'JsonWebTokenError';
 
         // Simulate jwt.verify failing directly with other error
-        mockJwtVerify.mockImplementation((token, getKey, options, callback) => {
-            callback(verifyError, undefined);
+        mockJwtVerify.mockImplementation((token, getKeyFunc, options, callback) => {
+            if (typeof callback === 'function') {
+                callback(verifyError, undefined);
+            }
         });
 
         await middleware(mockRequest as Request, mockResponse as Response, mockNext);
