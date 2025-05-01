@@ -32,9 +32,9 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
 
     // --- JWKS Client Setup (for local JWT verification) ---
     // Fetch these from config
-    const jwksUri = configService.get('COGNITO_JWKS_URI'); // e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json
-    const issuer = configService.get('COGNITO_ISSUER'); // e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}
-    const audience = configService.get('COGNITO_CLIENT_ID'); // Use the App Client ID expected for admin users
+    const jwksUri = configService.getOrThrow('COGNITO_JWKS_URI'); // e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json
+    const issuer = configService.getOrThrow('COGNITO_ISSUER'); // e.g., https://cognito-idp.{region}.amazonaws.com/{userPoolId}
+    const audience = configService.getOrThrow('COGNITO_CLIENT_ID'); // Use the App Client ID expected for admin users
 
     // Ensure required configurations are present before creating the client
     if (!jwksUri) {
@@ -193,25 +193,22 @@ export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req
             const userGroups: string[] = (decodedPayload['cognito:groups'] as string[]) || []; // Assert type if confident, or add validation
 
             if (!userGroups.includes(requiredAdminRole)) {
-                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User ${decodedPayload.sub || decodedPayload.username || 'N/A'} lacks required role '${requiredAdminRole}'.`, { userGroups });
-                // Use a specific ForbiddenError or similar
+                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User lacks required role '${requiredAdminRole}'.`, { userGroups });
                 throw new BaseError('ForbiddenError', 403, `Access denied. Required role '${requiredAdminRole}' missing.`, true);
             }
 
             // --- Attach Admin User Context ---
             // Attach verified admin user info to the request
             req.adminUser = {
-                // Use optional chaining or nullish coalescing for safety
-                id: decodedPayload.sub ?? 'unknown-sub', // 'sub' is standard JWT claim for user ID
-                username: (decodedPayload.username as string) ?? // Example if username is a custom claim
-                    (decodedPayload['cognito:username'] as string) ?? // Example if Cognito puts it here
-                    'unknown-username',
+                id: decodedPayload.sub ?? 'unknown-sub',
+                username: (decodedPayload['cognito:username'] as string) ?? 'unknown-username',
                 roles: userGroups,
-                attributes: decodedPayload, // Attach the full payload for potential downstream use
+                attributes: decodedPayload,
             };
 
             logger.info(`[AdminGuard - ${requestId}] Admin authentication successful for user: ${req.adminUser.username} (ID: ${req.adminUser.id})`);
-            next(); // Proceed
+    
+            next(); 
 
         } catch (error) {
             // Pass errors (AuthenticationError, ForbiddenError, TokenExpiredError, InvalidTokenError etc.)

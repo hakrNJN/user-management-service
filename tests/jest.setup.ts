@@ -31,3 +31,20 @@ jest.setTimeout(30000); // 30 seconds
 beforeEach(() => {
     jest.clearAllMocks();
 });
+
+// Make sure reflect-metadata is imported for tsyringe if used in setup/teardown
+import 'reflect-metadata';
+
+// Global setup/teardown using beforeAll/afterAll if run within Jest directly
+// If using globalSetup/Teardown, move this logic there.
+// beforeAll(async () => {
+//     console.log('Jest Setup: Creating test table...');
+//     await createTestTable();
+//     console.log('Jest Setup: Test table ready.');
+// }, 60000); // Increase timeout for table creation
+
+// afterAll(async () => {
+//     console.log('Jest Teardown: Deleting test table...');
+//     await deleteTestTable();
+//     console.log('Jest Teardown: Test table deleted.');
+// }, 120000); // Increase timeout for table deletion

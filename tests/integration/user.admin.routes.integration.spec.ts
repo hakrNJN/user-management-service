@@ -52,6 +52,7 @@ import { UserNotFoundError } from '../../src/domain/exceptions/UserManagementErr
 import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger';
 import { TYPES } from '../../src/shared/constants/types';
 import { BaseError, NotFoundError } from '../../src/shared/errors/BaseError';
+import { mockConfigService } from '../mocks/config.mock';
 // Import other schemas if needed for payload definitions
 // import { UpdateUserAttributesAdminSchema } from '../../src/api/dtos/update-user-attributes.admin.dto';
 // import { AddUserToGroupAdminSchema } from '../../src/api/dtos/add-user-to-group.admin.dto';
@@ -94,18 +95,6 @@ const MOCK_ADD_GROUP_PAYLOAD = {
 };
 // --- End Mock Payloads ---
 
-
-// --- Mock Config Service ---
-const mockConfigService: jest.Mocked<IConfigService> = { /* ... as before ... */
-    get: jest.fn((key: string, defaultValue?: any) => { const e = process.env[key]; if (e !== undefined) return e; if (key === 'COGNITO_JWKS_URI') return 'http://test.jwks/uri'; if (key === 'COGNITO_ISSUER') return 'http://test.issuer'; if (key === 'COGNITO_CLIENT_ID') return 'test-client-id'; if (key === 'CORS_ORIGIN') return '*'; return defaultValue; }),
-    getNumber: jest.fn((key: string, defaultValue?: number): number | undefined => { const v = mockConfigService.get(key); if (typeof v !== 'string' || v === '') return defaultValue; const n = parseInt(v, 10); return isNaN(n) ? defaultValue : n; }),
-    getBoolean: jest.fn((key: string, defaultValue?: boolean): boolean | undefined => { const v = mockConfigService.get(key)?.toString().toLowerCase(); if (v === 'true') return true; if (v === 'false') return false; return defaultValue; }),
-    isDevelopment: jest.fn(() => false),
-    isProduction: jest.fn(() => false),
-    isTest: jest.fn(() => true),
-    getAllConfig: jest.fn(() => ({})),
-    has: jest.fn((key: string): boolean => process.env[key] !== undefined || mockConfigService.get(key) !== undefined),
-};
 
 
 // --- Test Suite ---

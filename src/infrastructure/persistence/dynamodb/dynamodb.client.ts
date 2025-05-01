@@ -48,7 +48,7 @@ export class DynamoDBProvider {
     public readonly client: DynamoDBClient;
 
     constructor(@inject(TYPES.ConfigService) private configService: IConfigService) {
-        const region = this.configService.get<string>('AWS_REGION');
+        const region = this.configService.getOrThrow<string>('AWS_REGION');
         if (!region) {
             throw new Error('AWS_REGION configuration is missing for DynamoDB client.');
         }

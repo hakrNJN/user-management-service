@@ -59,8 +59,8 @@ export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
         @inject(TYPES.ConfigService) private configService: IConfigService,
         @inject(TYPES.Logger) private logger: ILogger
     ) {
-        const region = this.configService.get('AWS_REGION');
-        this.userPoolId = this.configService.get('COGNITO_USER_POOL_ID') || '';
+        const region = this.configService.getOrThrow('AWS_REGION');
+        this.userPoolId = this.configService.getOrThrow('COGNITO_USER_POOL_ID');
         this.cognitoClient = new CognitoIdentityProviderClient({ region });
         this.logger.info('CognitoUserMgmtAdapter initialized', { region, userPoolId: this.userPoolId });
         // Ensure 'cognitoAdmin' options exist in circuit-breaker.config.ts or adjust key

@@ -17,7 +17,7 @@ async function bootstrap() {
         logger = container.resolve<ILogger>(TYPES.Logger);
 
         logger.info('Application bootstrapping...');
-        logger.info(`Environment: ${configService.get('NODE_ENV')}`);
+        logger.info(`Environment: ${configService.getOrThrow('NODE_ENV')}`);
         logger.debug('Configuration loaded successfully.'); // Config details logged by service constructor
 
         // --- Create Express App ---

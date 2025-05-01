@@ -54,14 +54,22 @@ export class EnvironmentConfigService implements IConfigService {
         return value as unknown as T;
     }
 
-
+    /**
+         * Retrieves a configuration value. Throws an error if the key is not found or the value is empty.
+         * @param key - The configuration key.
+         * @returns The configuration value (typically string).
+         * @throws {Error} If the configuration value is missing or empty.
+         */
     getOrThrow<T = string>(key: string): T {
-        const value = this.get(key);
-        if (!value ) {
-          throw new Error(`Configuration ${key} is required but not provided`);
+        const value = this.config[key]; // Get raw value
+        // Throw if undefined OR strictly an empty string
+        if (value === undefined || value === '') {
+            // Use more specific error message
+            throw new Error(`Configuration error: Required environment variable "${key}" is missing or empty.`);
         }
+        // Return the existing, non-empty value
         return value as unknown as T;
-      }
+    }
     /**
      * Retrieves a configuration value, ensuring it's a number.
      * @param key - The configuration key.
@@ -85,6 +93,27 @@ export class EnvironmentConfigService implements IConfigService {
             }
             // Otherwise, throw an error as it's invalid config without a fallback
             throw new Error(`Configuration error: Environment variable "${key}" is not a valid number ("${value}").`);
+        }
+        return num;
+    }
+
+    /**
+     * Retrieves a configuration value, ensuring it's a number.
+     * @param key - The configuration key.
+     * @returns The configuration value as a number.
+     * @throws {Error} If the configuration value is missing, empty, or not a valid number.
+     */
+    getNumberOrThrow(key: string): number {
+        const value = this.config[key]; // Get raw value
+        // 1. Check if missing or empty
+        if (value === undefined || value === '') {
+            throw new Error(`Configuration error: Required environment variable "${key}" is missing or empty.`);
+        }
+        // 2. Check if valid number
+        const num = parseFloat(value);
+        if (isNaN(num)) {
+            // Throw if not a number (no default fallback in *OrThrow)
+            throw new Error(`Configuration error: Environment variable "${key}" must be a valid number (value: "${value}").`);
         }
         return num;
     }
@@ -118,6 +147,31 @@ export class EnvironmentConfigService implements IConfigService {
         }
         // Otherwise, throw an error
         throw new Error(`Configuration error: Environment variable "${key}" is not a valid boolean ("${this.config[key]}"). Expected 'true', 'false', '1', or '0'.`);
+    }
+
+    /**
+     * Retrieves a configuration value, ensuring it's a boolean.
+     * Parses 'true', '1' as true, and 'false', '0' as false (case-insensitive, trims whitespace).
+     * @param key - The configuration key.
+     * @returns The configuration value as a boolean.
+     * @throws {Error} If the configuration value is missing, empty, or not a valid boolean representation.
+     */
+    getBooleanOrThrow(key: string): boolean {
+        const value = this.config[key]; // Get raw value
+        // 1. Check if missing or empty
+        if (value === undefined || value === '') {
+            throw new Error(`Configuration error: Required environment variable "${key}" is missing or empty.`);
+        }
+        // 2. Check if valid boolean (case-insensitive, trim whitespace)
+        const processedValue = value.trim().toLowerCase();
+        if (processedValue === 'true' || processedValue === '1') {
+            return true;
+        }
+        if (processedValue === 'false' || processedValue === '0') {
+            return false;
+        }
+        // Throw if not valid boolean (no default fallback in *OrThrow)
+        throw new Error(`Configuration error: Environment variable "${key}" must be a valid boolean (value: "${value}"). Expected 'true', 'false', '1', or '0'.`);
     }
 
     /**

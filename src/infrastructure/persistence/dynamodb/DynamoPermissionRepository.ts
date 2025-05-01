@@ -1,13 +1,25 @@
-import { DynamoDBDocumentClient, PutCommand, GetCommand, DeleteCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import { inject, injectable } from "tsyringe";
+import { IConfigService } from "../../../application/interfaces/IConfigService";
+import { ILogger } from "../../../application/interfaces/ILogger";
 import { IPermissionRepository } from "../../../application/interfaces/IPermissionRepository";
 import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository";
 import { Permission } from "../../../domain/entities/Permission";
 import { TYPES } from "../../../shared/constants/types";
-import { ILogger } from "../../../application/interfaces/ILogger";
+import { BaseError } from "../../../shared/errors/BaseError";
 import { DynamoDBProvider } from "./dynamodb.client";
-import { IConfigService } from "../../../application/interfaces/IConfigService";
-import { BaseError, NotFoundError } from "../../../shared/errors/BaseError";
+
+// Define an interface for the expected structure from DynamoDB
+interface PermissionDynamoItem {
+    PK: string;
+    SK: string;
+    EntityType: 'Permission';
+    permissionName: string; // This is the key field stored in the item
+    description?: string;
+    createdAt: string; // Stored as ISO string
+    updatedAt: string; // Stored as ISO string
+    // Include any other fields you store for Permission items
+}
 
 @injectable()
 export class DynamoPermissionRepository implements IPermissionRepository {
@@ -21,12 +33,24 @@ export class DynamoPermissionRepository implements IPermissionRepository {
     ) {
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME'); // Use same table name
         this.client = DynamoDBDocumentClient.from(dynamoDBProvider.client, {
-             marshallOptions: { removeUndefinedValues: true }
+            marshallOptions: { removeUndefinedValues: true }
         });
     }
 
-     private mapToPermission(item: Record<string, any>): Permission {
-        return Permission.fromPersistence(item);
+    private mapToPermission(item: Record<string, any>): Permission {
+        // 1. Assert the item to the expected DynamoDB structure
+        const dynamoItem = item as PermissionDynamoItem;
+
+        // 2. Runtime check for the critical required field
+        if (typeof dynamoItem.permissionName !== 'string' || !dynamoItem.permissionName) {
+            this.logger.error('Invalid Permission item structure retrieved from DynamoDB: missing or invalid permissionName', { item: dynamoItem });
+            // Throw an error because we cannot create a valid Permission entity without its name
+            throw new BaseError('InvalidDataError', 500, 'Invalid permission data retrieved from database.', false);
+        }
+
+        // 3. Pass the validated data (or the asserted object) to the factory method
+        //    The factory method already handles optional fields and Date parsing.
+        return Permission.fromPersistence(dynamoItem);
     }
 
     private createKey(permissionName: string) {
@@ -44,16 +68,16 @@ export class DynamoPermissionRepository implements IPermissionRepository {
             Item: item,
             ConditionExpression: 'attribute_not_exists(PK)'
         });
-         try {
+        try {
             await this.client.send(command);
             this.logger.info(`Permission created successfully: ${permission.permissionName}`);
         } catch (error: any) {
-             if (error.name === 'ConditionalCheckFailedException') {
-                 this.logger.warn(`Failed to create permission, already exists: ${permission.permissionName}`);
-                 throw new BaseError('PermissionExistsError', 409, `Permission '${permission.permissionName}' already exists.`);
-             }
-             this.logger.error(`Error creating permission ${permission.permissionName}`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to create permission: ${error.message}`);
+            if (error.name === 'ConditionalCheckFailedException') {
+                this.logger.warn(`Failed to create permission, already exists: ${permission.permissionName}`);
+                throw new BaseError('PermissionExistsError', 409, `Permission '${permission.permissionName}' already exists.`);
+            }
+            this.logger.error(`Error creating permission ${permission.permissionName}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to create permission: ${error.message}`);
         }
     }
 
@@ -62,13 +86,13 @@ export class DynamoPermissionRepository implements IPermissionRepository {
             TableName: this.tableName,
             Key: this.createKey(permissionName)
         });
-         try {
+        try {
             const result = await this.client.send(command);
             if (!result.Item) return null;
             return this.mapToPermission(result.Item);
         } catch (error: any) {
-             this.logger.error(`Error finding permission ${permissionName}`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to find permission: ${error.message}`);
+            this.logger.error(`Error finding permission ${permissionName}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to find permission: ${error.message}`);
         }
     }
 
@@ -82,7 +106,7 @@ export class DynamoPermissionRepository implements IPermissionRepository {
             ExclusiveStartKey: options?.startKey,
         };
         const command = new ScanCommand(commandInput);
-         try {
+        try {
             const result = await this.client.send(command);
             const permissions = result.Items?.map(item => this.mapToPermission(item)) || [];
             return {
@@ -90,8 +114,8 @@ export class DynamoPermissionRepository implements IPermissionRepository {
                 lastEvaluatedKey: result.LastEvaluatedKey,
             };
         } catch (error: any) {
-             this.logger.error(`Error listing permissions`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to list permissions: ${error.message}`);
+            this.logger.error(`Error listing permissions`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to list permissions: ${error.message}`);
         }
     }
 
@@ -107,23 +131,23 @@ export class DynamoPermissionRepository implements IPermissionRepository {
     }
 
     async delete(permissionName: string): Promise<boolean> {
-         const command = new DeleteCommand({
+        const command = new DeleteCommand({
             TableName: this.tableName,
             Key: this.createKey(permissionName),
             ConditionExpression: 'attribute_exists(PK)'
         });
-         try {
+        try {
             await this.client.send(command);
             this.logger.info(`Permission deleted successfully: ${permissionName}`);
-             // TODO: Trigger cleanup of assignments via IAssignmentRepository
+            // TODO: Trigger cleanup of assignments via IAssignmentRepository
             return true;
         } catch (error: any) {
-             if (error.name === 'ConditionalCheckFailedException') {
-                 this.logger.warn(`Failed to delete permission, not found: ${permissionName}`);
-                 return false;
-             }
-             this.logger.error(`Error deleting permission ${permissionName}`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to delete permission: ${error.message}`);
+            if (error.name === 'ConditionalCheckFailedException') {
+                this.logger.warn(`Failed to delete permission, not found: ${permissionName}`);
+                return false;
+            }
+            this.logger.error(`Error deleting permission ${permissionName}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to delete permission: ${error.message}`);
         }
     }
 }

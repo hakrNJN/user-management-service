@@ -19,5 +19,9 @@ export const TYPES = {
     SystemController: Symbol.for('SystemController'),
     RoleAdminService: Symbol.for('RoleAdminService'), // Service for role admin logic
     PermissionAdminService: Symbol.for('PermissionAdminService'), // Service for permission admin logic
+    RoleRepository: Symbol.for('RoleRepository'), // Repository for role data access
+    PermissionRepository: Symbol.for('PermissionRepository'), // Repository for permission data access  
+    AssignmentRepository: Symbol.for('AssignmentRepository'), // Repository for assignment data access
+    UserProfileRepository: Symbol.for('UserProfileRepository'), // Repository for user profile data access
     // Add other tokens as needed
 };

@@ -50,8 +50,10 @@ export function createApp(): Express { // No need for async if setup is synchron
   // All routes defined in './api/routes' will have access to req.id and context
   app.use('/api', routes); // 7. Your main application routes
 
-
-  // --- Catch-all for 404 Not Found ---
+  // In app.ts, the 404 handler currently sends a direct JSON response.
+  // Consider creating a NotFoundError instance and passing it to next(err)
+  // (like the commented-out code). This ensures all errors (including 404s)
+  // go through the centralized error.middleware.ts for consistent formatting and logging.
   // This runs if no API route matched the request
   app.use((req: Request, res: Response, next: NextFunction) => { // 8. Handles requests not matched by routes
     const requestId = RequestContextUtil.getRequestId(); // Get ID for response

@@ -35,9 +35,9 @@ export class WinstonLogger implements ILogger {
 
         // Add CloudWatch transport in production
         if (nodeEnv === 'production') {
-            const awsRegion = this.configService.get('AWS_REGION');
-            const logGroupName = this.configService.get('CW_LOG_GROUP_NAME');
-            const logStreamName = this.configService.get('CW_LOG_STREAM_NAME');
+            const awsRegion = this.configService.getOrThrow('AWS_REGION');
+            const logGroupName = this.configService.getOrThrow('CW_LOG_GROUP_NAME');
+            const logStreamName = this.configService.getOrThrow('CW_LOG_STREAM_NAME');
 
             if (awsRegion && logGroupName) {
                 const cloudWatchTransport = new CloudWatchTransport({

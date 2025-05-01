@@ -7,41 +7,7 @@ import { ILogger } from '../../src/application/interfaces/ILogger';
 import { container } from '../../src/container'; // Adjust path
 import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger'; // Example Logger impl
 import { TYPES } from '../../src/shared/constants/types';
-// Using the mockConfigService is still useful if the controller *reads* config values
-// that we want to control during the test (even if we don't mock the controller itself).
-
-// --- Mock Config Service (remains useful for controlling config values read by the app/controller) ---
-const mockConfigService: jest.Mocked<IConfigService> = {
-    get: jest.fn((key: string, defaultValue?: any) => {
-        // Use process.env values set in jest.setup.ts or override here if needed
-        const envValue = process.env[key];
-        if (envValue !== undefined) return envValue;
-
-        // Specific overrides for testing if necessary
-        if (key === 'APP_VERSION') return '1.0.0-test'; // Example if controller needs this
-
-        return defaultValue;
-    }),
-    getNumber: jest.fn((key: string, defaultValue?: number): number | undefined => {
-         const value = mockConfigService.get(key);
-         if (typeof value !== 'string' || value === '') return defaultValue;
-         const num = parseInt(value, 10);
-         return isNaN(num) ? defaultValue : num;
-    }),
-    getBoolean: jest.fn((key: string, defaultValue?: boolean): boolean | undefined => {
-        const value = mockConfigService.get(key);
-        const lowerCaseValue = typeof value === 'string' ? value.toLowerCase().trim() : value;
-        if (lowerCaseValue === 'true' ) return true;
-        if (lowerCaseValue === 'false' ) return false;
-        return defaultValue;
-    }),
-    isDevelopment: jest.fn(() => mockConfigService.get('NODE_ENV') === 'development'),
-    isProduction: jest.fn(() => mockConfigService.get('NODE_ENV') === 'production'),
-    isTest: jest.fn(() => mockConfigService.get('NODE_ENV') === 'test'),
-    getAllConfig: jest.fn(() => ({ /* Mock relevant config */ })),
-    has: jest.fn((key: string): boolean => process.env[key] !== undefined || mockConfigService.get(key) !== undefined),
-};
-
+import { mockConfigService } from '../mocks/config.mock'; // Adjust path
 
 describe('Integration Tests: System Routes (/api/system)', () => {
     let app: Express;
