@@ -2,12 +2,12 @@
 import { Express } from 'express';
 import 'reflect-metadata';
 import request from 'supertest';
-import { createApp } from '../../src/app';
-import { IRoleAdminService } from '../../src/application/interfaces/IRoleAdminService'; // Correct path
-import { container } from '../../src/container';
-import { Role } from '../../src/domain/entities/Role';
-import { PermissionNotFoundError, RoleExistsError, RoleNotFoundError } from '../../src/domain/exceptions/UserManagementError'; // Correct path
-import { TYPES } from '../../src/shared/constants/types';
+import { createApp } from '../../../src/app';
+import { IRoleAdminService } from '../../../src/application/interfaces/IRoleAdminService'; // Correct path
+import { container } from '../../../src/container';
+import { Role } from '../../../src/domain/entities/Role';
+import { PermissionNotFoundError, RoleExistsError, RoleNotFoundError } from '../../../src/domain/exceptions/UserManagementError'; // Correct path
+import { TYPES } from '../../../src/shared/constants/types';
 
 // --- Mock Service Layer ---
 const mockRoleAdminService: jest.Mocked<IRoleAdminService> = {
@@ -31,6 +31,9 @@ describe('/api/admin/roles Routes Integration Tests', () => {
     let app: Express;
 
     beforeAll(() => {
+        if (!process.env.DYNAMODB_ENDPOINT_URL || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+            throw new Error("Required DynamoDB test environment variables are not set!");
+        }
         process.env.NODE_ENV = 'test';
         app = createApp();
     });

@@ -1,12 +1,12 @@
 // tests/integration/DynamoAssignmentRepository.integration.spec.ts
 import 'reflect-metadata';
-import { IAssignmentRepository } from '../../src/application/interfaces/IAssignmentRepository';
-import { container } from '../../src/container';
-import { TYPES } from '../../src/shared/constants/types';
-import { TEST_TABLE_NAME } from '../helpers/dynamodb.helper';
+import { IAssignmentRepository } from '../../../src/application/interfaces/IAssignmentRepository';
+import { container } from '../../../src/container';
+import { TYPES } from '../../../src/shared/constants/types';
+import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper';
 // Import helper to seed data if needed, or create directly in tests
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'; // For potential direct cleanup
-import { getTestDocumentClient } from '../helpers/dynamodb.helper';
+import { getTestDocumentClient } from '../../helpers/dynamodb.helper';
 
 describe('DynamoAssignmentRepository Integration Tests', () => {
     let assignmentRepository: IAssignmentRepository;

@@ -21,25 +21,25 @@ const mockGroupAdminServiceImpl = { // Mock implementation object
     deleteGroup: jest.fn(),
 };
 // *** ADJUST PATH IF NEEDED ***
-jest.mock('../../src/application/services/group.admin.service', () => ({
+jest.mock('../../../src/application/services/group.admin.service', () => ({
     GroupAdminService: jest.fn().mockImplementation(() => mockGroupAdminServiceImpl)
 }));
 // --- END JEST CLASS MOCKING ---
 
 // --- Application Imports (AFTER MOCKS) ---
-import { createApp } from '../../src/app';
-import { HttpStatusCode } from '../../src/application/enums/HttpStatusCode';
-import { IConfigService } from '../../src/application/interfaces/IConfigService';
-import { ILogger } from '../../src/application/interfaces/ILogger';
+import { createApp } from '../../../src/app';
+import { HttpStatusCode } from '../../../src/application/enums/HttpStatusCode';
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { ILogger } from '../../../src/application/interfaces/ILogger';
 // Import IGroupAdminService ONLY for type casting if needed
 // import { IGroupAdminService } from '../../src/application/interfaces/IGroupAdminService';
-import { container } from '../../src/container';
-import { Group } from '../../src/domain/entities/Group'; // Assuming Group entity path
-import { GroupExistsError } from '../../src/domain/exceptions/UserManagementError'; // Import relevant domain error
-import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger';
-import { TYPES } from '../../src/shared/constants/types';
-import { NotFoundError } from '../../src/shared/errors/BaseError';
-import { mockConfigService } from '../mocks/config.mock';
+import { container } from '../../../src/container';
+import { Group } from '../../../src/domain/entities/Group'; // Assuming Group entity path
+import { GroupExistsError } from '../../../src/domain/exceptions/UserManagementError'; // Import relevant domain error
+import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger';
+import { TYPES } from '../../../src/shared/constants/types';
+import { NotFoundError } from '../../../src/shared/errors/BaseError';
+import { mockConfigService } from '../../mocks/config.mock';
 // Import DTOs/Schemas if needed for payload definitions
 // import { CreateGroupAdminSchema, groupNameParamsSchema } from '../../src/api/dtos/create-group.admin.dto';
 

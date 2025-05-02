@@ -1,57 +1,57 @@
 import { Router } from 'express';
+import { ILogger } from '../../application/interfaces/ILogger';
 import { container } from '../../container';
+import { TYPES } from '../../shared/constants/types';
 import { GroupAdminController } from '../controllers/group.admin.controller';
 import { createAdminAuthGuardMiddleware } from '../middlewares/admin.auth.guard.middleware';
 import { validationMiddleware } from '../middlewares/validation.middleware';
 // Import DTO Schemas
-import { ILogger } from '../../application/interfaces/ILogger';
-import { TYPES } from '../../shared/constants/types';
 import { CreateGroupAdminSchema, GroupNameParamsSchema } from '../dtos/create-group.admin.dto';
+// Import assignment schemas from the shared DTO file
+import { GroupRoleAssignSchema, GroupRoleUnassignSchema } from '../dtos/role-permission.admin.dto';
 
 // Resolve dependencies
 const groupAdminController = container.resolve(GroupAdminController);
 const logger = container.resolve<ILogger>(TYPES.Logger);
-
-// Create admin guard instance
-const adminGuard = createAdminAuthGuardMiddleware('admin'); // <<< Specify required role/group name
+const adminGuard = createAdminAuthGuardMiddleware('admin');
 
 // Create router instance
 const router = Router();
 
-// Apply admin guard to all routes
+// Apply admin guard to all group routes
 router.use(adminGuard);
 
-// --- Group Management Routes ---
+// --- Group Management Routes (Cognito Groups) ---
 
-// POST /admin/groups - Create Group
+router.post( '/', validationMiddleware(CreateGroupAdminSchema, logger), groupAdminController.createGroup );
+router.get( '/', groupAdminController.listGroups ); // Add pagination query validation if needed
+router.get( '/:groupName', validationMiddleware(GroupNameParamsSchema, logger), groupAdminController.getGroup );
+router.delete( '/:groupName', validationMiddleware(GroupNameParamsSchema, logger), groupAdminController.deleteGroup );
+
+// --- Group <-> Role Assignment Routes (DynamoDB Assignments) ---
+
+// Assign Role to Group: POST /admin/groups/{groupName}/roles
 router.post(
-    '/',
-    validationMiddleware(CreateGroupAdminSchema, logger),
-    groupAdminController.createGroup
+    '/:groupName/roles',
+    validationMiddleware(GroupRoleAssignSchema, logger), // Validates groupName param and roleName in body
+    groupAdminController.assignRoleToGroup
 );
 
-// GET /admin/groups - List Groups
-router.get(
-    '/',
-    // Add query param validation if needed (e.g., for pagination)
-    groupAdminController.listGroups
-);
-
-// GET /admin/groups/:groupName - Get Group Details
-router.get(
-    '/:groupName',
-    validationMiddleware(GroupNameParamsSchema, logger), // Validate groupName param
-    groupAdminController.getGroup
-);
-
-// DELETE /admin/groups/:groupName - Delete Group
+// Remove Role from Group: DELETE /admin/groups/{groupName}/roles/{roleName}
 router.delete(
-    '/:groupName',
-    validationMiddleware(GroupNameParamsSchema, logger), // Validate groupName param
-    groupAdminController.deleteGroup
+    '/:groupName/roles/:roleName',
+    validationMiddleware(GroupRoleUnassignSchema, logger), // Validates both params
+    groupAdminController.removeRoleFromGroup
 );
 
-// GET /admin/groups/:groupName/users - List Users in Group (Moved to user.admin.routes.ts for resource consistency)
-// This endpoint is handled in user.admin.routes.ts as GET /admin/groups/:groupName/users
+// List Roles for Group: GET /admin/groups/{groupName}/roles
+router.get(
+    '/:groupName/roles',
+    validationMiddleware(GroupNameParamsSchema, logger), // Only need to validate groupName param
+    groupAdminController.listRolesForGroup
+);
+
+// --- User membership routes moved ---
+// GET /admin/groups/:groupName/users - List Users in Group (Moved to user.admin.routes.ts)
 
 export default router;

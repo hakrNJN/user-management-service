@@ -1,11 +1,11 @@
 // tests/integration/CognitoUserMgmtAdapter.integration.spec.ts
 import 'reflect-metadata';
-import { IConfigService } from '../../src/application/interfaces/IConfigService';
-import { AdminCreateUserDetails, IUserMgmtAdapter } from '../../src/application/interfaces/IUserMgmtAdapter';
-import { container } from '../../src/container';
-import { GroupExistsError, GroupNotFoundError, UserNotFoundError } from '../../src/domain/exceptions/UserManagementError'; // Assuming mapped errors
-import { TYPES } from '../../src/shared/constants/types';
-import { ValidationError } from '../../src/shared/errors/BaseError';
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { AdminCreateUserDetails, IUserMgmtAdapter } from '../../../src/application/interfaces/IUserMgmtAdapter';
+import { container } from '../../../src/container';
+import { GroupExistsError, GroupNotFoundError, UserNotFoundError } from '../../../src/domain/exceptions/UserManagementError'; // Assuming mapped errors
+import { TYPES } from '../../../src/shared/constants/types';
+import { ValidationError } from '../../../src/shared/errors/BaseError';
 
 // ********** IMPORTANT WARNING **********
 // These tests interact with a REAL AWS Cognito User Pool.

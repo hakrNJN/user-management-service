@@ -21,6 +21,8 @@ process.env.DYNAMODB_ENDPOINT_URL = 'http://localhost:8000';
 process.env.DYNAMODB_TABLE_PREFIX = 'test_';
 process.env.USER_PROFILES_TABLE = 'user_profiles';
 
+process.env.AUTHZ_TABLE_NAME = 'TEST_TABLE_NAME';
+
 // JWT Configuration for e2e tests
 process.env.JWT_SECRET = 'test-secret';
 

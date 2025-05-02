@@ -1,10 +1,10 @@
 // tests/integration/DynamoUserProfileRepository.integration.spec.ts
 import 'reflect-metadata';
-import { IUserProfileRepository } from '../../src/application/interfaces/IUserProfileRepository'; // Assuming path
-import { container } from '../../src/container';
-import { UserProfile } from '../../src/domain/entities/UserProfile'; // Assuming path
-import { TYPES } from '../../src/shared/constants/types';
-import { BaseError } from '../../src/shared/errors/BaseError';
+import { IUserProfileRepository } from '../../../src/application/interfaces/IUserProfileRepository'; // Assuming path
+import { container } from '../../../src/container';
+import { UserProfile } from '../../../src/domain/entities/UserProfile'; // Assuming path
+import { TYPES } from '../../../src/shared/constants/types';
+import { BaseError } from '../../../src/shared/errors/BaseError';
 // Assuming a separate User Profile table or different PK/SK structure
 // Adjust TEST_TABLE_NAME and PK/SK structure if using the same table
 

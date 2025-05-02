@@ -24,6 +24,29 @@ const client = new DynamoDBClient({
     },
 });
 
+// export const testDynamoDbClient = new DynamoDBClient({
+//     region: process.env.AWS_REGION || 'us-east-1',
+//     endpoint: process.env.DYNAMODB_ENDPOINT_URL || 'http://localhost:8000',
+//     // **Explicitly provide dummy credentials for tests**
+//     credentials: {
+//         accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummykey', // Use env var or default dummy
+//         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummysecret', // Use env var or default dummy
+//     },
+//      // Optional: Improve performance for local tests
+//      requestHandler: new NodeHttpHandler({
+//         connectionTimeout: 2000,
+//         socketTimeout: 2000,
+//         httpAgent: { keepAlive: true } // Reuse connections
+//     }),
+// });
+
+// export function getTestDocumentClient(): DynamoDBDocumentClient {
+//      return DynamoDBDocumentClient.from(testDynamoDbClient, { // Use the explicit test client
+//          marshallOptions: { removeUndefinedValues: true }
+//      });
+// }
+// -
+
 export async function createTestTable(): Promise<void> {
     console.log(`Attempting to create test table: ${TEST_TABLE_NAME}`);
     try {

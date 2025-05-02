@@ -30,7 +30,7 @@ const mockUserAdminService = { // Mock implementation object
     listUsersInGroup: jest.fn(),
 };
 
-jest.mock('../../src/application/services/user.admin.service', () => { // <<< Path to the service file
+jest.mock('../../../src/application/services/user.admin.service', () => { // <<< Path to the service file
     return {
         // Key matches the exported class name
         UserAdminService: jest.fn().mockImplementation(() => {
@@ -42,17 +42,17 @@ jest.mock('../../src/application/services/user.admin.service', () => { // <<< Pa
 // --- END JEST CLASS MOCKING ---
 
 // --- Application Imports (AFTER MOCKS) ---
-import { createApp } from '../../src/app';
-import { HttpStatusCode } from '../../src/application/enums/HttpStatusCode';
-import { IConfigService } from '../../src/application/interfaces/IConfigService';
-import { ILogger } from '../../src/application/interfaces/ILogger';
-import { container } from '../../src/container';
-import { AdminUserView } from '../../src/domain/entities/AdminUserView';
-import { UserNotFoundError } from '../../src/domain/exceptions/UserManagementError';
-import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger';
-import { TYPES } from '../../src/shared/constants/types';
-import { BaseError, NotFoundError } from '../../src/shared/errors/BaseError';
-import { mockConfigService } from '../mocks/config.mock';
+import { createApp } from '../../../src/app';
+import { HttpStatusCode } from '../../../src/application/enums/HttpStatusCode';
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { ILogger } from '../../../src/application/interfaces/ILogger';
+import { container } from '../../../src/container';
+import { AdminUserView } from '../../../src/domain/entities/AdminUserView';
+import { UserNotFoundError } from '../../../src/domain/exceptions/UserManagementError';
+import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger';
+import { TYPES } from '../../../src/shared/constants/types';
+import { BaseError, NotFoundError } from '../../../src/shared/errors/BaseError';
+import { mockConfigService } from '../../mocks/config.mock';
 // Import other schemas if needed for payload definitions
 // import { UpdateUserAttributesAdminSchema } from '../../src/api/dtos/update-user-attributes.admin.dto';
 // import { AddUserToGroupAdminSchema } from '../../src/api/dtos/add-user-to-group.admin.dto';

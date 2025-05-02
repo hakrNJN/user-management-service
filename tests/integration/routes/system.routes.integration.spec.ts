@@ -1,13 +1,13 @@
 import { Express } from 'express';
 import 'reflect-metadata'; // Must be first
 import request from 'supertest';
-import { createApp } from '../../src/app'; // Adjust path
-import { IConfigService } from '../../src/application/interfaces/IConfigService';
-import { ILogger } from '../../src/application/interfaces/ILogger';
-import { container } from '../../src/container'; // Adjust path
-import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger'; // Example Logger impl
-import { TYPES } from '../../src/shared/constants/types';
-import { mockConfigService } from '../mocks/config.mock'; // Adjust path
+import { createApp } from '../../../src/app'; // Adjust path
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { ILogger } from '../../../src/application/interfaces/ILogger';
+import { container } from '../../../src/container'; // Adjust path
+import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger'; // Example Logger impl
+import { TYPES } from '../../../src/shared/constants/types';
+import { mockConfigService } from '../../mocks/config.mock'; // Adjust path
 
 describe('Integration Tests: System Routes (/api/system)', () => {
     let app: Express;
@@ -25,12 +25,12 @@ describe('Integration Tests: System Routes (/api/system)', () => {
 
         // Register Logger (using real impl or mock)
         // Ensure LOG_LEVEL from jest.setup.ts ('error') is respected if using real logger
-         if (!container.isRegistered(TYPES.Logger)) {
+        if (!container.isRegistered(TYPES.Logger)) {
             // Make sure WinstonLogger respects LOG_LEVEL from process.env
             container.registerSingleton<ILogger>(TYPES.Logger, WinstonLogger);
-         } else {
-             // If already registered (e.g. globally), ensure its config is suitable for tests
-         }
+        } else {
+            // If already registered (e.g. globally), ensure its config is suitable for tests
+        }
 
 
         logger = container.resolve<ILogger>(TYPES.Logger);
@@ -42,9 +42,9 @@ describe('Integration Tests: System Routes (/api/system)', () => {
 
     // No need for afterEach clearAllMocks if mocks aren't modified per test
     // but keep it if you plan to adjust mock return values within specific tests.
-     afterEach(() => {
-         jest.clearAllMocks();
-     });
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
 
 
     afterAll(() => {
@@ -86,7 +86,7 @@ describe('Integration Tests: System Routes (/api/system)', () => {
         });
     });
 
-     describe('GET /api/non-existent-route', () => {
+    describe('GET /api/non-existent-route', () => {
         // This test should still pass as it tests the 404 handler
         it('should return 404 Not Found', async () => {
             const response = await request(app)

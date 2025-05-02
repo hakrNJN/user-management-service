@@ -45,4 +45,9 @@ export interface IGroupAdminService {
 
     // Add updateGroup if needed (Cognito's UpdateGroup is limited)
     // updateGroup(adminUser: AdminUser, groupName: string, updates: UpdateGroupDetails): Promise<Group>;
+    assignRoleToGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void>;
+
+    removeRoleFromGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void> 
+
+    listRolesForGroup(adminUser: AdminUser, groupName: string): Promise<string[]>
 }

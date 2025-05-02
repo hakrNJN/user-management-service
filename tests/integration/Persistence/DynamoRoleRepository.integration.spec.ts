@@ -1,12 +1,12 @@
 // tests/integration/DynamoRoleRepository.integration.spec.ts
 import 'reflect-metadata'; // Required for tsyringe
-import { IConfigService } from '../../src/application/interfaces/IConfigService';
-import { IRoleRepository } from '../../src/application/interfaces/IRoleRepository';
-import { container } from '../../src/container'; // Use actual container
-import { Role } from '../../src/domain/entities/Role';
-import { TYPES } from '../../src/shared/constants/types';
-import { BaseError } from '../../src/shared/errors/BaseError';
-import { TEST_TABLE_NAME } from '../helpers/dynamodb.helper'; // Import test table name
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { IRoleRepository } from '../../../src/application/interfaces/IRoleRepository';
+import { container } from '../../../src/container'; // Use actual container
+import { Role } from '../../../src/domain/entities/Role';
+import { TYPES } from '../../../src/shared/constants/types';
+import { BaseError } from '../../../src/shared/errors/BaseError';
+import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper'; // Import test table name
 // Note: We use the real repository implementation injected via the container
 
 describe('DynamoRoleRepository Integration Tests', () => {

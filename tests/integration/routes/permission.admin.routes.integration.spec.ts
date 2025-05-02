@@ -2,12 +2,12 @@
 import { Express } from 'express';
 import 'reflect-metadata';
 import request from 'supertest';
-import { createApp } from '../../src/app';
-import { IPermissionAdminService } from '../../src/application/interfaces/IPermissionAdminService';
-import { container } from '../../src/container';
-import { Permission } from '../../src/domain/entities/Permission';
-import { PermissionExistsError, PermissionNotFoundError } from '../../src/domain/exceptions/UserManagementError';
-import { TYPES } from '../../src/shared/constants/types';
+import { createApp } from '../../../src/app';
+import { IPermissionAdminService } from '../../../src/application/interfaces/IPermissionAdminService';
+import { container } from '../../../src/container';
+import { Permission } from '../../../src/domain/entities/Permission';
+import { PermissionExistsError, PermissionNotFoundError } from '../../../src/domain/exceptions/UserManagementError';
+import { TYPES } from '../../../src/shared/constants/types';
 
 // --- Mock Service Layer ---
 const mockPermissionAdminService: jest.Mocked<IPermissionAdminService> = {
@@ -29,6 +29,9 @@ describe('/api/admin/permissions Routes Integration Tests', () => {
     let app: Express;
 
     beforeAll(() => {
+        if (!process.env.DYNAMODB_ENDPOINT_URL || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+            throw new Error("Required DynamoDB test environment variables are not set!");
+        }
         // Ensure NODE_ENV is test for bypass token and DI override
         process.env.NODE_ENV = 'test';
         app = createApp(); // Create app AFTER overriding service

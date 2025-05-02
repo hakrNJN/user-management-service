@@ -1,7 +1,10 @@
+// src/api/routes/index.ts
 import { Router } from 'express';
 // --- Import specific feature routers below ---
 import groupAdminRouter from './group.admin.routes';
-import systemRouter from './system.routes'; // System routes (health, info)
+import permissionAdminRouter from './permission.admin.routes'; // <<< IMPORT
+import roleAdminRouter from './role.admin.routes'; // <<< IMPORT
+import systemRouter from './system.routes';
 import userAdminRouter from './user.admin.routes';
 
 const router = Router();
@@ -13,5 +16,7 @@ router.use('/system', systemRouter);
 // Admin routes (prefixed and protected)
 router.use('/admin/users', userAdminRouter);
 router.use('/admin/groups', groupAdminRouter);
+router.use('/admin/roles', roleAdminRouter);             // <<< REGISTER
+router.use('/admin/permissions', permissionAdminRouter); // <<< REGISTER
 
 export default router;

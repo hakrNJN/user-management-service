@@ -1,11 +1,11 @@
 // tests/integration/DynamoPermissionRepository.integration.spec.ts
 import 'reflect-metadata';
-import { IPermissionRepository } from '../../src/application/interfaces/IPermissionRepository';
-import { container } from '../../src/container';
-import { Permission } from '../../src/domain/entities/Permission';
-import { TYPES } from '../../src/shared/constants/types';
-import { BaseError } from '../../src/shared/errors/BaseError';
-import { TEST_TABLE_NAME } from '../helpers/dynamodb.helper';
+import { IPermissionRepository } from '../../../src/application/interfaces/IPermissionRepository';
+import { container } from '../../../src/container';
+import { Permission } from '../../../src/domain/entities/Permission';
+import { TYPES } from '../../../src/shared/constants/types';
+import { BaseError } from '../../../src/shared/errors/BaseError';
+import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper';
 
 describe('DynamoPermissionRepository Integration Tests', () => {
     let permissionRepository: IPermissionRepository;

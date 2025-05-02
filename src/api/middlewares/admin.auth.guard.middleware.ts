@@ -1,12 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
-import { ILogger } from '../../application/interfaces/ILogger';
-import { container } from '../../container';
-import { TYPES } from '../../shared/constants/types';
-import { AuthenticationError, InvalidTokenError, TokenExpiredError } from '../../domain/exceptions/UserManagementError';
-import { BaseError } from '../../shared/errors/BaseError';
 import jwt, { JwtHeader, JwtPayload, SigningKeyCallback, VerifyErrors } from 'jsonwebtoken';
 import jwksClient, { JwksClient } from 'jwks-rsa';
 import { IConfigService } from '../../application/interfaces/IConfigService';
+import { ILogger } from '../../application/interfaces/ILogger';
+import { container } from '../../container';
+import { AuthenticationError, InvalidTokenError, TokenExpiredError } from '../../domain/exceptions/UserManagementError';
+import { TYPES } from '../../shared/constants/types';
+import { BaseError } from '../../shared/errors/BaseError';
 import { AdminUser } from '../../shared/types/admin-user.interface';
 
 const TEST_ENV_BEARER_TOKEN = 'valid-test-token-for-admin-bypass-12345';
@@ -18,10 +18,14 @@ const TEST_ENV_BEARER_TOKEN = 'valid-test-token-for-admin-bypass-12345';
  * @param requiredAdminRole - The role/group name required for access (e.g., 'admin').
  * @returns An Express middleware function.
  */
-export const createAdminAuthGuardMiddleware = (requiredAdminRole: string): ((req: Request, res: Response, next: NextFunction) => Promise<void>) => {
+export const createAdminAuthGuardMiddleware = (
+    requiredAdminRole: string,
+    injectedLogger?: ILogger,
+    injectedConfigService?: IConfigService
+): ((req: Request, res: Response, next: NextFunction) => Promise<void>) => {
     // Resolve dependencies needed by the guard
-    const logger = container.resolve<ILogger>(TYPES.Logger);
-    const configService = container.resolve<IConfigService>(TYPES.ConfigService);
+    const logger = injectedLogger ?? container.resolve<ILogger>(TYPES.Logger);
+    const configService = injectedConfigService ?? container.resolve<IConfigService>(TYPES.ConfigService);
 
     // --- JWKS Client Setup (for local JWT verification) ---
     const jwksUri = configService.getOrThrow('COGNITO_JWKS_URI');
