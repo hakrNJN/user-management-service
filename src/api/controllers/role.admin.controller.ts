@@ -1,13 +1,14 @@
 import { NextFunction, Request, Response } from 'express';
 import { inject, injectable } from 'tsyringe';
 import { HttpStatusCode } from '../../application/enums/HttpStatusCode';
-import { IRoleAdminService } from '../../application/interfaces/IRoleAdminService';
-import { BaseError } from '../../shared/errors/BaseError';
-import { TYPES } from '../../shared/constants/types';
 import { ILogger } from '../../application/interfaces/ILogger';
+import { IRoleAdminService } from '../../application/interfaces/IRoleAdminService';
+import { TYPES } from '../../shared/constants/types';
+import { BaseError } from '../../shared/errors/BaseError';
 import { AdminUser } from '../../shared/types/admin-user.interface';
 // Import DTOs
-import { CreateRoleAdminDto, RoleNameParamsDto, UpdateRoleAdminDto, RolePermissionAssignDto, RolePermissionUnassignParams } from '../dtos/role-permission.admin.dto';
+import { RoleNotFoundError } from '../../domain/exceptions/UserManagementError';
+import { CreateRoleAdminDto, RoleNameParamsDto, RolePermissionAssignDto, RolePermissionUnassignParams, UpdateRoleAdminDto } from '../dtos/role-permission.admin.dto';
 
 @injectable()
 export class RoleAdminController {
@@ -37,16 +38,20 @@ export class RoleAdminController {
     // GET /admin/roles/:roleName
     getRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         const adminUser = this.getAdminUser(req);
+        const roleNameFromParams = req.params?.roleName; 
         try {
             const { roleName }: RoleNameParamsDto = req.params as any;
             const role = await this.roleAdminService.getRole(adminUser, roleName);
             if (!role) {
-                res.status(HttpStatusCode.NOT_FOUND).json({ message: `Role '${roleName}' not found.` });
+                // Use next() with specific error for consistent handling by error middleware
+                throw new RoleNotFoundError(roleName);
             } else {
                 res.status(HttpStatusCode.OK).json(role);
             }
         } catch (error) {
-             this.logger.error(`[RoleAdminCtrl] Failed to get role ${req.params?.roleName}`, { adminUserId: adminUser.id, error });
+            if (!(error instanceof RoleNotFoundError)) {
+                this.logger.error(`[RoleAdminCtrl] Failed to get role ${roleNameFromParams}`, { adminUserId: adminUser.id, error });
+            }
              next(error);
         }
     };

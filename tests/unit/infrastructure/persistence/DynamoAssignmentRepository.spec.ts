@@ -1,9 +1,11 @@
 // tests/unit/infrastructure/persistence/DynamoAssignmentRepository.spec.ts
-
 import { DeleteCommand, DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { mockClient } from 'aws-sdk-client-mock';
 import 'aws-sdk-client-mock-jest';
+import 'reflect-metadata';
 
+import { BatchWriteItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall } from "@aws-sdk/util-dynamodb";
 import { IConfigService } from '../../../../src/application/interfaces/IConfigService';
 import { ILogger } from '../../../../src/application/interfaces/ILogger';
 import { DynamoAssignmentRepository } from '../../../../src/infrastructure/persistence/dynamodb/DynamoAssignmentRepository';
@@ -201,60 +203,153 @@ describe('DynamoAssignmentRepository', () => {
 
     // --- Test Cleanup Methods (Placeholder tests as implementations are incomplete) ---
     describe('removeAllAssignmentsFor*', () => {
-        // These tests would be more complex, involving mocking Query to find items
-        // and then mocking BatchWriteCommand to delete them.
-        // For now, just test that they log the warning.
+        const userRoles = [marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` })];
+        const userPerms = [marshall({ PK: `USER#${userId}`, SK: `PERM#${permName}` })];
+        const groupRoles = [marshall({ PK: `GROUP#${groupName}`, SK: `ROLE#${roleName}` })];
+        const rolePerms = [marshall({ PK: `ROLE#${roleName}`, SK: `PERM#${permName}` })];
+        // Items returned from GSI queries need PK/SK for deletion
+        const rolesWithPerm = [marshall({ PK: `ROLE#${roleName}`, SK: `PERM#${permName}` })];
+        const usersWithRole = [marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` })];
 
-        it('removeAllAssignmentsForUser should log warning', async () => {
+        it('removeAllAssignmentsForUser should query PK and batch delete', async () => {
+            // Mock Query for USER# PK
+            ddbMock.on(QueryCommand, { KeyConditionExpression: "PK = :pkval", ExpressionAttributeValues: marshall({ ":pkval": `USER#${userId}` }) })
+                .resolvesOnce({ Items: [...userRoles, ...userPerms] }); // Combine results for single PK query
+            // Mock BatchWrite to succeed
+            ddbMock.on(BatchWriteItemCommand).resolves({ UnprocessedItems: {} });
+
             await repository.removeAllAssignmentsForUser(userId);
-            expect(logger.warn).toHaveBeenCalledWith(`Cleanup for user ${userId} not fully implemented.`);
+
+            // Verify Query was called correctly
+            expect(ddbMock).toHaveReceivedCommandWith(QueryCommand, {
+                KeyConditionExpression: "PK = :pkval",
+                ExpressionAttributeValues: marshall({ ":pkval": `USER#${userId}` }),
+                ProjectionExpression: "PK, SK",
+            });
+            // Verify BatchWrite was called with correct DeleteRequests
+            expect(ddbMock).toHaveReceivedCommandWith(BatchWriteItemCommand, {
+                RequestItems: {
+                    [tableName]: expect.arrayContaining([
+                        { DeleteRequest: { Key: marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` }) } },
+                        { DeleteRequest: { Key: marshall({ PK: `USER#${userId}`, SK: `PERM#${permName}` }) } },
+                    ])
+                }
+            });
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for user ID: ${userId}. Deleted 2 items.`));
         });
-        it('removeAllAssignmentsForGroup should log warning', async () => {
+
+        it('removeAllAssignmentsForGroup should query PK and batch delete', async () => {
+            // Mock Query for GROUP# PK (only finds roles assigned to group)
+            ddbMock.on(QueryCommand, { KeyConditionExpression: "PK = :pkval AND begins_with(SK, :skprefix)", ExpressionAttributeValues: marshall({ ":pkval": `GROUP#${groupName}`, ":skprefix": "ROLE#" }) })
+                .resolves({ Items: groupRoles });
+            ddbMock.on(BatchWriteItemCommand).resolves({ UnprocessedItems: {} });
+
             await repository.removeAllAssignmentsForGroup(groupName);
-            expect(logger.warn).toHaveBeenCalledWith(`Cleanup for group ${groupName} not fully implemented.`);
+
+            expect(ddbMock).toHaveReceivedCommandWith(QueryCommand, { ProjectionExpression: "PK, SK" });
+            expect(ddbMock).toHaveReceivedCommandWith(BatchWriteItemCommand, {
+                RequestItems: { [tableName]: [{ DeleteRequest: { Key: marshall({ PK: `GROUP#${groupName}`, SK: `ROLE#${roleName}` }) } }] }
+            });
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for group: ${groupName}. Deleted 1 items.`));
         });
-        it('removeAllAssignmentsForRole should log warning', async () => {
+
+        it('removeAllAssignmentsForRole should query PK and GSI, then batch delete', async () => {
+            // Mock Query for ROLE# PK (finds assigned permissions)
+            ddbMock.on(QueryCommand, { KeyConditionExpression: "PK = :pkval AND begins_with(SK, :skprefix)", ExpressionAttributeValues: marshall({ ":pkval": `ROLE#${roleName}`, ":skprefix": "PERM#" }) })
+                .resolves({ Items: rolePerms });
+            // Mock Query for GSI lookup (finds groups with this role)
+            ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: marshall({ ":skval": `ROLE#${roleName}`, ":pkprefix": "GROUP#" }) })
+                .resolves({ Items: groupRoles }); // Group assignment item
+            // Mock Query for GSI lookup (finds users with this role)
+            ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: marshall({ ":skval": `ROLE#${roleName}`, ":pkprefix": "USER#" }) })
+                .resolves({ Items: usersWithRole }); // User assignment item
+            // Mock BatchWrite
+            ddbMock.on(BatchWriteItemCommand).resolves({ UnprocessedItems: {} });
+
             await repository.removeAllAssignmentsForRole(roleName);
-            expect(logger.warn).toHaveBeenCalledWith(`Cleanup for role ${roleName} not fully implemented.`);
-        });
-        it('removeAllAssignmentsForPermission should log warning', async () => {
-            await repository.removeAllAssignmentsForPermission(permName);
-            expect(logger.warn).toHaveBeenCalledWith(`Cleanup for permission ${permName} not fully implemented.`);
-        });
 
-        // Example of how a full test might look (requires implementing the method first)
-        /*
-        it('removeAllAssignmentsForRole should query and batch delete items', async () => {
-            const rolePerms = [{ PK: `ROLE#${roleName}`, SK: `PERM#perm1` }];
-            const groupRoles = [{ PK: `GROUP#group1`, SK: `ROLE#${roleName}` }]; // From GSI query
-
-            // Mock Query for ROLE#... PK
-            ddbMock.on(QueryCommand, { KeyConditionExpression: "PK = :pkval AND begins_with(SK, :skprefix)", ExpressionAttributeValues: { ":pkval": `ROLE#${roleName}`, ":skprefix": "PERM#" }})
-                   .resolves({ Items: rolePerms });
-            // Mock Query for GSI lookup (Groups)
-             ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: { ":skval": `ROLE#${roleName}`, ":pkprefix": "GROUP#" }})
-                   .resolves({ Items: groupRoles });
-             // Mock Query for GSI lookup (Users - assuming pattern)
-             ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: { ":skval": `ROLE#${roleName}`, ":pkprefix": "USER#" }})
-                    .resolves({ Items: [] }); // No users assigned this role directly
-
-            // Mock BatchWriteCommand
-            ddbMock.on(BatchWriteCommand).resolves({});
-
-            await repository.removeAllAssignmentsForRole(roleName); // Call the *implemented* method
-
-            // Expect Query calls were made
+            // Verify all 3 queries were made
             expect(ddbMock).toHaveReceivedCommandTimes(QueryCommand, 3);
-            // Expect BatchWriteCommand was called with DeleteRequests for the found items
-             expect(ddbMock).toHaveReceivedCommandWith(BatchWriteCommand, {
-                 RequestItems: {
-                     [tableName]: expect.arrayContaining([
-                         { DeleteRequest: { Key: { PK: `ROLE#${roleName}`, SK: `PERM#perm1` } } },
-                         { DeleteRequest: { Key: { PK: `GROUP#group1`, SK: `ROLE#${roleName}` } } },
-                     ])
-                 }
-             });
+            // Verify BatchWrite payload
+            expect(ddbMock).toHaveReceivedCommandWith(BatchWriteItemCommand, {
+                RequestItems: {
+                    [tableName]: expect.arrayContaining([
+                        { DeleteRequest: { Key: marshall({ PK: `ROLE#${roleName}`, SK: `PERM#${permName}` }) } },
+                        { DeleteRequest: { Key: marshall({ PK: `GROUP#${groupName}`, SK: `ROLE#${roleName}` }) } },
+                        { DeleteRequest: { Key: marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` }) } },
+                    ])
+                }
+            });
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for role: ${roleName}. Deleted 3 assignment items.`));
         });
-        */
+
+        it('removeAllAssignmentsForPermission should query GSI and batch delete', async () => {
+            // Mock Query for GSI lookup (finds roles with this perm)
+            ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: marshall({ ":skval": `PERM#${permName}`, ":pkprefix": "ROLE#" }) })
+                .resolves({ Items: rolesWithPerm });
+            // Mock Query for GSI lookup (finds users with this perm)
+            ddbMock.on(QueryCommand, { IndexName: GSI1_NAME, KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", ExpressionAttributeValues: marshall({ ":skval": `PERM#${permName}`, ":pkprefix": "USER#" }) })
+                .resolves({ Items: userPerms });
+            ddbMock.on(BatchWriteItemCommand).resolves({ UnprocessedItems: {} });
+
+            await repository.removeAllAssignmentsForPermission(permName);
+
+            expect(ddbMock).toHaveReceivedCommandTimes(QueryCommand, 2);
+            expect(ddbMock).toHaveReceivedCommandWith(BatchWriteItemCommand, {
+                RequestItems: {
+                    [tableName]: expect.arrayContaining([
+                        { DeleteRequest: { Key: marshall({ PK: `ROLE#${roleName}`, SK: `PERM#${permName}` }) } },
+                        { DeleteRequest: { Key: marshall({ PK: `USER#${userId}`, SK: `PERM#${permName}` }) } },
+                    ])
+                }
+            });
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for permission: ${permName}. Deleted 2 assignment items.`));
+        });
+
+        it('should handle empty results during cleanup queries', async () => {
+            ddbMock.on(QueryCommand).resolves({ Items: [] }); // All queries return empty
+            ddbMock.on(BatchWriteItemCommand).resolves({ UnprocessedItems: {} });
+
+            await repository.removeAllAssignmentsForRole(roleName); // Example call
+
+            expect(ddbMock).toHaveReceivedCommandTimes(QueryCommand, 3); // Queries still run
+            expect(ddbMock).not.toHaveReceivedCommand(BatchWriteItemCommand); // No batch write needed
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for role: ${roleName}. Deleted 0 assignment items.`));
+        });
+
+        it('should handle unprocessed items during batch delete', async () => {
+            const itemsToDelete = [marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` })];
+            const unprocessedKey = { DeleteRequest: { Key: marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` }) } };
+
+            ddbMock.on(QueryCommand).resolves({ Items: itemsToDelete });
+            // First BatchWrite returns unprocessed items, second succeeds
+            ddbMock.on(BatchWriteItemCommand)
+                .resolvesOnce({ UnprocessedItems: { [tableName]: [unprocessedKey] } })
+                .resolvesOnce({ UnprocessedItems: {} });
+
+            await repository.removeAllAssignmentsForUser(userId);
+
+            expect(ddbMock).toHaveReceivedCommandTimes(BatchWriteItemCommand, 2); // Initial + Retry
+            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Retrying 1 unprocessed delete items...`));
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Completed assignment cleanup for user ID: ${userId}. Deleted 1 items.`));
+        });
+
+        it('should throw DatabaseError if query fails during cleanup', async () => {
+            const queryError = new Error('Query failed during cleanup');
+            ddbMock.on(QueryCommand).rejects(queryError);
+            await expect(repository.removeAllAssignmentsForUser(userId)).rejects.toThrow(BaseError);
+            await expect(repository.removeAllAssignmentsForUser(userId)).rejects.toThrow(/Failed during query/);
+            expect(ddbMock).not.toHaveReceivedCommand(BatchWriteItemCommand);
+        });
+
+        it('should throw DatabaseError if batch delete fails', async () => {
+            const itemsToDelete = [marshall({ PK: `USER#${userId}`, SK: `ROLE#${roleName}` })];
+            const batchError = new Error('BatchWrite failed');
+            ddbMock.on(QueryCommand).resolves({ Items: itemsToDelete });
+            ddbMock.on(BatchWriteItemCommand).rejects(batchError);
+
+            await expect(repository.removeAllAssignmentsForUser(userId)).rejects.toThrow(BaseError);
+            await expect(repository.removeAllAssignmentsForUser(userId)).rejects.toThrow(/Failed during batch delete/);
+        });
     });
 });

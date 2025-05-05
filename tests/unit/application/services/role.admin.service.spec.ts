@@ -130,18 +130,16 @@ describe('RoleAdminService', () => {
         const roleName = 'deleter';
 
         it('should call roleRepo.delete and assignmentRepo.removeAllAssignmentsForRole on success', async () => {
-            roleRepo.delete.mockResolvedValue(true);
-            assignmentRepo.removeAllAssignmentsForRole.mockResolvedValue(undefined);
+            roleRepo.delete.mockResolvedValue(true); // Role found and deleted
+            assignmentRepo.removeAllAssignmentsForRole.mockResolvedValue(undefined); // Cleanup success
+
             await service.deleteRole(mockAdminUser, roleName);
-        
+
             expect(roleRepo.delete).toHaveBeenCalledWith(roleName);
-            expect(assignmentRepo.removeAllAssignmentsForRole).toHaveBeenCalledWith(roleName);
-        
-            // FIX: Check if *any* info log call matches the final success message
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin successfully deleted role '${roleName}' and cleaned up assignments`), // Check the exact final log message
-                expect.objectContaining({ adminUserId: mockAdminUser.id })
-            );
+            expect(assignmentRepo.removeAllAssignmentsForRole).toHaveBeenCalledWith(roleName); // Verify cleanup called
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Successfully cleaned up assignments for deleted role ${roleName}`), expect.any(Object));
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin successfully deleted role '${roleName}' and cleaned up assignments`), expect.any(Object));
+            expect(logger.error).not.toHaveBeenCalled();
         });
 
         it('should throw RoleNotFoundError if roleRepo.delete returns false', async () => {
@@ -152,18 +150,31 @@ describe('RoleAdminService', () => {
             expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Role not found for deletion'), expect.any(Object));
         });
 
-        it('should throw error if removeAllAssignments fails', async () => {
-            roleRepo.delete.mockResolvedValue(true);
+        it('should throw error and log if removeAllAssignments fails', async () => {
+            roleRepo.delete.mockResolvedValue(true); // Role deleted successfully
             const cleanupError = new Error("Cleanup failed");
-            assignmentRepo.removeAllAssignmentsForRole.mockRejectedValue(cleanupError);
+            assignmentRepo.removeAllAssignmentsForRole.mockRejectedValue(cleanupError); // Cleanup fails
 
             await expect(service.deleteRole(mockAdminUser, roleName))
-                .rejects.toThrow(BaseError); // Expect the wrapped error
-            await expect(service.deleteRole(mockAdminUser, roleName))
-                .rejects.toThrow(/Role deleter was deleted, but failed to remove associated assignments/);
-            expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to cleanup assignments'), expect.objectContaining({ error: cleanupError }));
+                .rejects.toThrow(BaseError); // Expect wrapped error
+             await expect(service.deleteRole(mockAdminUser, roleName))
+                 .rejects.toHaveProperty('name', 'CleanupFailedError'); // Check specific error name
+             await expect(service.deleteRole(mockAdminUser, roleName))
+                 .rejects.toThrow(/failed to remove associated assignments/); // Check message
+
+
+            expect(roleRepo.delete).toHaveBeenCalledWith(roleName);
+            expect(assignmentRepo.removeAllAssignmentsForRole).toHaveBeenCalledWith(roleName);
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Role ${roleName} deleted from repository`), expect.any(Object));
+            // Check specific error log
+            expect(logger.error).toHaveBeenCalledWith(
+                expect.stringContaining(`Failed to cleanup assignments for deleted role ${roleName}`),
+                expect.objectContaining({ error: cleanupError })
+            );
+             // Final overall success log should NOT be called
+             expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(`successfully deleted role '${roleName}' and cleaned up assignments`), expect.any(Object));
         });
-
+        
         it('should throw ForbiddenError if admin lacks permission', async () => {
             await expect(service.deleteRole(mockNonAdminUser, roleName)).rejects.toHaveProperty('statusCode', 403);
             expect(roleRepo.delete).not.toHaveBeenCalled();

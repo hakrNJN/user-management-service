@@ -1,12 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import { inject, injectable } from 'tsyringe';
 import { HttpStatusCode } from '../../application/enums/HttpStatusCode';
-import { IPermissionAdminService } from '../../application/interfaces/IPermissionAdminService';
-import { BaseError } from '../../shared/errors/BaseError';
-import { TYPES } from '../../shared/constants/types';
 import { ILogger } from '../../application/interfaces/ILogger';
+import { IPermissionAdminService } from '../../application/interfaces/IPermissionAdminService';
+import { TYPES } from '../../shared/constants/types';
+import { BaseError } from '../../shared/errors/BaseError';
 import { AdminUser } from '../../shared/types/admin-user.interface';
 // Import DTOs
+import { PermissionNotFoundError } from '../../domain/exceptions/UserManagementError';
 import { CreatePermissionAdminDto, PermissionNameParamsDto, UpdatePermissionAdminDto } from '../dtos/role-permission.admin.dto';
 
 @injectable()
@@ -37,16 +38,20 @@ export class PermissionAdminController {
     // GET /admin/permissions/:permissionName
     getPermission = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         const adminUser = this.getAdminUser(req);
+        const permissionNameFromParams = req.params?.permissionName;
         try {
             const { permissionName }: PermissionNameParamsDto = req.params as any;
             const permission = await this.permissionAdminService.getPermission(adminUser, permissionName);
             if (!permission) {
-                res.status(HttpStatusCode.NOT_FOUND).json({ message: `Permission '${permissionName}' not found.` });
-            } else {
-                res.status(HttpStatusCode.OK).json(permission);
-            }
+                // Use next() with specific error for consistent handling by error middleware
+               throw new PermissionNotFoundError(permissionName);
+           } else {
+               res.status(HttpStatusCode.OK).json(permission);
+           }
         } catch (error) {
-             this.logger.error(`[PermAdminCtrl] Failed to get permission ${req.params?.permissionName}`, { adminUserId: adminUser.id, error });
+            if (!(error instanceof PermissionNotFoundError)) {
+                this.logger.error(`[PermAdminCtrl] Failed to get permission ${permissionNameFromParams}`, { adminUserId: adminUser.id, error });
+            }
              next(error);
         }
     };

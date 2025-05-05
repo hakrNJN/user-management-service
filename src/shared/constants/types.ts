@@ -27,4 +27,15 @@ export const TYPES = {
     AssignmentRepository: Symbol.for('AssignmentRepository'), // Repository for assignment data access
     UserProfileRepository: Symbol.for('UserProfileRepository'), // Repository for user profile data access
     // Add other tokens as needed
+
+    // Application Layer Interfaces / Ports (New)
+    PolicyAdminService: Symbol.for('PolicyAdminService'), // Service for policy admin logic
+    PolicyRepository: Symbol.for('PolicyRepository'),     // Repository for policy data access
+    PolicyEngineAdapter: Symbol.for('PolicyEngineAdapter'), // Adapter for policy storage/management interaction
+
+    // API Layer (Controllers - New)
+    PolicyAdminController: Symbol.for('PolicyAdminController'), // Controller for policy admin logic
+
+    // ... potentially add symbols for new adapter implementations if needed for specific injection ...
+    // DynamoDbPolicyEngineAdapter: Symbol.for('DynamoDbPolicyEngineAdapter'),
 };

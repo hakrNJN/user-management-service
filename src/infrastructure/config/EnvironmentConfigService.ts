@@ -28,7 +28,11 @@ export class EnvironmentConfigService implements IConfigService {
         // --- Rely on process.env populated by Node's --env-file flag ---
         console.info(`[ConfigService] Reading configuration from process.env (expected to be populated by --env-file)`);
         this.config = process.env;
-        console.debug('[ConfigService] Configuration loaded from environment variables.');
+        if (process.env.LOG_LEVEL === 'debug') {
+            console.debug('[ConfigService] Loaded configuration (filtered):', this.getAllConfig());
+       } else {
+            console.debug('[ConfigService] Configuration loaded (keys only):', Object.keys(this.config));
+       };
         const missingKeys = this.requiredKeys.filter(key => !this.has(key) || this.config[key] === '');
         if (missingKeys.length > 0) {
             const errorMsg = `[ConfigService] Missing or empty required environment variables: ${missingKeys.join(', ')}`;
@@ -36,7 +40,13 @@ export class EnvironmentConfigService implements IConfigService {
             throw new Error(errorMsg);
         }
         console.info('[ConfigService] Required configuration keys verified.');
-        // --- End required key check ---
+        // --- Add placeholder comment for future policy engine config ---
+        // Future Policy Engine Configuration:
+        // When implementing alternative IPolicyEngineAdapter (e.g., Git, OPA API),
+        // add relevant environment variables here and in requiredKeys if necessary.
+        // Examples:
+        // OPA_MGMT_API_ENDPOINT, OPA_AUTH_TOKEN, GIT_POLICY_REPO_URL, GIT_POLICY_BRANCH
+        // --- End placeholder comment ---
     }
 
     /**
@@ -201,7 +211,10 @@ export class EnvironmentConfigService implements IConfigService {
                     // Or if the required key didn't match a sensitive pattern anyway
                     filteredConfig[reqKey] = this.config[reqKey];
                 }
-            }
+            }else if (!this.config.hasOwnProperty(reqKey)) {
+                // Should not happen due to initial check, but good practice
+                filteredConfig[reqKey] = '[MISSING REQUIRED KEY]';
+           }
         });
         return filteredConfig;
     }
@@ -214,7 +227,7 @@ export class EnvironmentConfigService implements IConfigService {
 
     has(key: string): boolean {
         // Checks for the existence of the key, regardless of value (even empty string)
-        return this.config[key] !== undefined;
+        return Object.prototype.hasOwnProperty.call(this.config, key) && this.config[key] !== undefined;
     }
 
     // Reload logic might need adjustment depending on how --env-file interacts

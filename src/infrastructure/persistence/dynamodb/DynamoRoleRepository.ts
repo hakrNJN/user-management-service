@@ -1,80 +1,90 @@
-import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
+import {
+    AttributeValue,
+    ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand,
+    QueryCommand, // <<< Import QueryCommand
+    QueryCommandInput, // <<< Import QueryCommandInput
+    UpdateItemCommand // <<< Import UpdateItemCommand
+} from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { inject, injectable } from "tsyringe";
 import { IConfigService } from "../../../application/interfaces/IConfigService";
 import { ILogger } from "../../../application/interfaces/ILogger";
 import { IRoleRepository } from "../../../application/interfaces/IRoleRepository";
 import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository"; // Reuse pagination types
 import { Role } from "../../../domain/entities/Role";
+import { RoleExistsError } from "../../../domain/exceptions/UserManagementError"; // Import specific errors
 import { TYPES } from "../../../shared/constants/types";
 import { BaseError } from "../../../shared/errors/BaseError";
 import { DynamoDBProvider } from "./dynamodb.client"; // Inject provider
 
 // Define an interface for the expected structure from DynamoDB
 interface RoleDynamoItem {
-    PK: string;
-    SK: string;
+    PK: string;         // ROLE#{roleName}
+    SK: string;         // ROLE#{roleName}
     EntityType: 'Role';
-    roleName: string; // This is the key field stored in the item
+    roleName: string;   // This is the key field stored in the item
     description?: string;
     createdAt: string; // Stored as ISO string
     updatedAt: string; // Stored as ISO string
-    // Include any other fields you store for Role items
+    // GSI Keys for listing by type
+    EntityTypeGSI_PK: string; // Value: 'Role'
+    EntityTypeGSI_SK: string; // Value: ROLE#{roleName}
 }
+
+// Constants for GSI
+const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
 
 @injectable()
 export class DynamoRoleRepository implements IRoleRepository {
     private readonly tableName: string;
-    private readonly client: DynamoDBDocumentClient;
+    private readonly client: DynamoDBClient; // Use base client
 
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
         @inject(TYPES.Logger) private logger: ILogger,
         @inject(DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
     ) {
-        // Assuming a single table name for all authorization entities
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
-        this.client = DynamoDBDocumentClient.from(dynamoDBProvider.client, {
-            marshallOptions: { removeUndefinedValues: true }
-        });
+        this.client = dynamoDBProvider.client;
     }
 
-    private mapToRole(item: Record<string, any>): Role {
-        // 1. Assert the item to the expected DynamoDB structure
-        const dynamoItem = item as RoleDynamoItem;
-
-        // 2. Runtime check for the critical required field
-        if (typeof dynamoItem.roleName !== 'string' || !dynamoItem.roleName) {
-            this.logger.error('Invalid Role item structure retrieved from DynamoDB: missing or invalid roleName', { item: dynamoItem });
-            // Throw an error because we cannot create a valid Role entity without its name
-            throw new BaseError('InvalidDataError', 500, 'Invalid role data retrieved from database.', false);
+    private mapToRole(item: Record<string, AttributeValue>): Role {
+        const plainObject = unmarshall(item);
+         try {
+             return Role.fromPersistence(plainObject as any);
+        } catch (error: any) {
+            this.logger.error("Failed to map DynamoDB item to Role entity", { itemPK: item.PK?.S, error: error.message, item });
+            throw new BaseError('InvalidDataError', 500, `Invalid role data retrieved from database: ${error.message}`, false);
         }
-
-        // 3. Pass the validated data (or the asserted object) to the factory method
-        return Role.fromPersistence(dynamoItem);
     }
 
-    private createKey(roleName: string) {
-        return { PK: `ROLE#${roleName}`, SK: `ROLE#${roleName}` };
+    private createKey(roleName: string): Record<string, AttributeValue> {
+         const key = `ROLE#${roleName}`;
+         return marshall({ PK: key, SK: key });
     }
 
     async create(role: Role): Promise<void> {
         const item = {
-            ...this.createKey(role.roleName),
+            PK: `ROLE#${role.roleName}`,
+            SK: `ROLE#${role.roleName}`,
             EntityType: 'Role',
             ...role.toPersistence(),
+            // Add GSI keys
+            EntityTypeGSI_PK: 'Role',
+            EntityTypeGSI_SK: `ROLE#${role.roleName}`,
         };
-        const command = new PutCommand({
+        const command = new PutItemCommand({
             TableName: this.tableName,
-            Item: item,
+            Item: marshall(item, { removeUndefinedValues: true }),
             ConditionExpression: 'attribute_not_exists(PK)' // Prevent overwriting
         });
         try {
             await this.client.send(command);
             this.logger.info(`Role created successfully: ${role.roleName}`);
         } catch (error: any) {
-            if (error.name === 'ConditionalCheckFailedException') {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
                 this.logger.warn(`Failed to create role, already exists: ${role.roleName}`);
-                throw new BaseError('RoleExistsError', 409, `Role '${role.roleName}' already exists.`);
+                throw new RoleExistsError(role.roleName); // Throw specific error
             }
             this.logger.error(`Error creating role ${role.roleName}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to create role: ${error.message}`);
@@ -82,7 +92,7 @@ export class DynamoRoleRepository implements IRoleRepository {
     }
 
     async findByName(roleName: string): Promise<Role | null> {
-        const command = new GetCommand({
+        const command = new GetItemCommand({
             TableName: this.tableName,
             Key: this.createKey(roleName)
         });
@@ -96,69 +106,76 @@ export class DynamoRoleRepository implements IRoleRepository {
         }
     }
 
+    // *** MODIFIED list METHOD ***
     async list(options?: QueryOptions): Promise<QueryResult<Role>> {
-        this.logger.warn("Listing roles using Scan operation. Consider using a GSI for performance.");
-        const commandInput: ScanCommandInput = {
+        this.logger.debug("Listing roles using Query on GSI", { options });
+        const commandInput: QueryCommandInput = {
             TableName: this.tableName,
-            FilterExpression: "EntityType = :type",
-            ExpressionAttributeValues: { ":type": "Role" },
+            IndexName: ENTITY_TYPE_GSI_NAME, // <<< Query the GSI
+            KeyConditionExpression: "EntityTypeGSI_PK = :type", // <<< Query GSI PK
+            ExpressionAttributeValues: marshall({
+                 ":type": "Role"
+            }),
             Limit: options?.limit,
-            ExclusiveStartKey: options?.startKey,
+            ExclusiveStartKey: options?.startKey, // Pass opaque key directly
+            ScanIndexForward: true,
         };
-        const command = new ScanCommand(commandInput);
+        const command = new QueryCommand(commandInput); // <<< Use QueryCommand
         try {
             const result = await this.client.send(command);
-            const roles: Role[] = []; // Initialize empty array
-
-            // REMOVED the incorrect .map call
-
-            // Process items ONLY within the loop
-            if (result.Items) {
-                for (const item of result.Items) {
-                    try {
-                        roles.push(this.mapToRole(item)); // Map and push valid roles
-                    } catch (mapError: any) {
-                        // Check the error name (more robust)
-                        if (mapError instanceof BaseError && mapError.name === 'InvalidDataError') {
-                            // Log "Skipping..." - THIS SHOULD BE THE ONLY logger.error CALL IN THIS TEST CASE
-                            this.logger.error(`Skipping invalid role item during list operation`, { itemPk: item.PK, error: mapError.message });
-                            continue; // Skip this item
-                        } else {
-                            // Handle unexpected mapping errors
-                            this.logger.error(`Unexpected error mapping role during list`, { itemPk: item.PK, error: mapError });
-                            throw new BaseError('DatabaseError', 500, `Failed to process role during list: ${mapError.message}`);
-                        }
-                    }
-                }
-            }
-            // Return correctly populated roles
+            const roles = result.Items?.map(item => this.mapToRole(item)) || [];
             return {
                 items: roles,
-                lastEvaluatedKey: result.LastEvaluatedKey,
+                lastEvaluatedKey: result.LastEvaluatedKey ? result.LastEvaluatedKey as Record<string, any> : undefined,
             };
-        } catch (error: any) { // Catches SDK errors or errors re-thrown from the loop's 'else' block
-            this.logger.error(`Error listing roles (SDK level or unexpected mapping error)`, error);
-            if (error instanceof BaseError) {
-                throw error;
-            }
+        } catch (error: any) {
+            this.logger.error(`Error listing roles via GSI`, error);
             throw new BaseError('DatabaseError', 500, `Failed to list roles: ${error.message}`);
         }
     }
 
+    // *** MODIFIED update METHOD ***
     async update(roleName: string, updates: Partial<Pick<Role, 'description'>>): Promise<Role | null> {
-        // Implement DynamoDB UpdateCommand logic similar to UserProfileRepository
-        // Ensure to update 'updatedAt'
-        this.logger.warn(`Role update not fully implemented yet.`);
-        // Placeholder: Fetch, update in memory, save (inefficient but simple example)
-        const existing = await this.findByName(roleName);
-        if (!existing) return null;
-        existing.update(updates);
-        await this.create(existing); // Put will overwrite
-        return existing;
+        const key = this.createKey(roleName);
+        const now = new Date().toISOString();
+
+        const updateExpressionParts: string[] = ['SET updatedAt = :now'];
+        const expressionAttributeValues: Record<string, any> = { ':now': now };
+
+        if (updates.description !== undefined) {
+            updateExpressionParts.push('description = :desc');
+            expressionAttributeValues[':desc'] = updates.description;
+        } // Add handling for other fields if they become updatable
+
+        const command = new UpdateItemCommand({
+            TableName: this.tableName,
+            Key: key,
+            UpdateExpression: updateExpressionParts.join(', '),
+            ExpressionAttributeValues: marshall(expressionAttributeValues),
+            ConditionExpression: 'attribute_exists(PK)',
+            ReturnValues: 'ALL_NEW',
+        });
+
+        try {
+            const result = await this.client.send(command);
+             if (!result.Attributes) {
+                 this.logger.error("UpdateItem succeeded but returned no attributes", { roleName });
+                 throw new BaseError('DatabaseError', 500, 'Failed to retrieve updated role attributes.');
+            }
+            this.logger.info(`Role updated successfully: ${roleName}`);
+            return this.mapToRole(result.Attributes);
+        } catch (error: any) {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
+                this.logger.warn(`Failed to update role, not found: ${roleName}`);
+                return null;
+            }
+            this.logger.error(`Error updating role ${roleName}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to update role: ${error.message}`);
+        }
     }
 
     async delete(roleName: string): Promise<boolean> {
-        const command = new DeleteCommand({
+        const command = new DeleteItemCommand({
             TableName: this.tableName,
             Key: this.createKey(roleName),
             ConditionExpression: 'attribute_exists(PK)' // Ensure it exists before deleting
@@ -166,10 +183,10 @@ export class DynamoRoleRepository implements IRoleRepository {
         try {
             await this.client.send(command);
             this.logger.info(`Role deleted successfully: ${roleName}`);
-            // TODO: Trigger cleanup of assignments via IAssignmentRepository
+            // Service layer handles assignment cleanup
             return true;
         } catch (error: any) {
-            if (error.name === 'ConditionalCheckFailedException') {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
                 this.logger.warn(`Failed to delete role, not found: ${roleName}`);
                 return false; // Not found
             }

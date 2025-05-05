@@ -8,7 +8,7 @@ import { CreateGroupDetails, IUserMgmtAdapter } from '../../../../src/applicatio
 import { GroupAdminService } from '../../../../src/application/services/group.admin.service';
 import { Group } from '../../../../src/domain/entities/Group';
 import { Role } from '../../../../src/domain/entities/Role'; // Added
-import { AssignmentError, GroupNotFoundError, RoleNotFoundError } from '../../../../src/domain/exceptions/UserManagementError'; // Added
+import { AssignmentError, GroupExistsError, GroupNotFoundError, RoleNotFoundError } from '../../../../src/domain/exceptions/UserManagementError'; // Added
 import { BaseError, NotFoundError } from '../../../../src/shared/errors/BaseError';
 import { mockUserMgmtAdapter } from '../../../mocks/adapter.mock';
 import { mockAdminUser, mockNonAdminUser } from '../../../mocks/adminUser.mock';
@@ -35,7 +35,6 @@ describe('GroupAdminService', () => {
 
     // --- createGroup (No changes needed if create doesn't involve assignments) ---
     describe('createGroup', () => {
-        // ... tests remain the same ...
         const groupDetails: CreateGroupDetails = { groupName: 'new-group', description: 'A new group' };
         const mockCognitoGroup: GroupType = {
             GroupName: groupDetails.groupName, Description: groupDetails.description,
@@ -45,23 +44,51 @@ describe('GroupAdminService', () => {
         it('should call adapter.adminCreateGroup and return mapped Group on success', async () => {
             adapter.adminCreateGroup.mockResolvedValue(mockCognitoGroup);
             const result = await service.createGroup(mockAdminUser, groupDetails);
-            expect(result).toBeInstanceOf(Group); // etc.
+            expect(result).toBeInstanceOf(Group);
+            expect(result.groupName).toBe(groupDetails.groupName);
             expect(adapter.adminCreateGroup).toHaveBeenCalledWith(groupDetails);
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('successfully created group'), expect.any(Object));
         });
-        // ... other createGroup tests ...
+
+        it('should throw ForbiddenError if admin lacks permission', async () => {
+            await expect(service.createGroup(mockNonAdminUser, groupDetails))
+                .rejects.toHaveProperty('statusCode', 403);
+            expect(adapter.adminCreateGroup).not.toHaveBeenCalled();
+        });
+
+        it('should re-throw GroupExistsError from adapter', async () => {
+            // Assume adapter maps Cognito's GroupExistsException to domain's GroupExistsError
+            const error = new GroupExistsError(groupDetails.groupName);
+            adapter.adminCreateGroup.mockRejectedValue(error);
+            await expect(service.createGroup(mockAdminUser, groupDetails))
+                .rejects.toThrow(GroupExistsError);
+            expect(logger.error).toHaveBeenCalled();
+        });
     });
 
     // --- getGroup (No changes needed) ---
     describe('getGroup', () => {
-        // ... tests remain the same ...
         const groupName = 'existing-group';
-        const mockCognitoGroup: GroupType = { GroupName: groupName, UserPoolId: 'pool-id', /*...*/ };
+        const mockCognitoGroup: GroupType = { GroupName: groupName, UserPoolId: 'pool-id', Description: 'Test' };
         it('should call adapter.adminGetGroup and return mapped Group if found', async () => {
             adapter.adminGetGroup.mockResolvedValue(mockCognitoGroup);
             const result = await service.getGroup(mockAdminUser, groupName);
-            expect(result).toBeInstanceOf(Group); // etc.
+            expect(result).toBeInstanceOf(Group);
+            expect(result?.groupName).toBe(groupName);
+            expect(adapter.adminGetGroup).toHaveBeenCalledWith(groupName);
         });
-        // ... other getGroup tests ...
+
+        it('should return null if adapter returns null', async () => {
+            adapter.adminGetGroup.mockResolvedValue(null);
+            const result = await service.getGroup(mockAdminUser, groupName);
+            expect(result).toBeNull();
+            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Group not found'), expect.any(Object));
+        });
+
+         it('should throw ForbiddenError if admin lacks permission', async () => {
+            await expect(service.getGroup(mockNonAdminUser, groupName))
+                .rejects.toHaveProperty('statusCode', 403);
+        });
     });
 
     // --- listGroups (No changes needed) ---
@@ -117,10 +144,10 @@ describe('GroupAdminService', () => {
             await service.deleteGroup(mockAdminUser, groupName);
 
             expect(adapter.adminDeleteGroup).toHaveBeenCalledWith(groupName);
-            expect(assignmentRepository.removeAllAssignmentsForGroup).toHaveBeenCalledWith(groupName);
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin successfully deleted Cognito group ${groupName}`), expect.any(Object));
+            expect(assignmentRepository.removeAllAssignmentsForGroup).toHaveBeenCalledWith(groupName); // Verify cleanup called
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`successfully deleted Cognito group ${groupName}`), expect.any(Object));
             expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Successfully cleaned up assignments for deleted group ${groupName}`), expect.any(Object));
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin successfully deleted group '${groupName}' and cleaned up assignments`), expect.any(Object));
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`successfully deleted group '${groupName}' and cleaned up assignments`), expect.any(Object));
             expect(logger.error).not.toHaveBeenCalled(); // No errors logged
         });
 
@@ -156,18 +183,22 @@ describe('GroupAdminService', () => {
             assignmentRepository.removeAllAssignmentsForGroup.mockRejectedValue(cleanupError); // Cleanup fails
 
             await expect(service.deleteGroup(mockAdminUser, groupName))
-                .rejects.toThrow(BaseError); // Expect the wrapped BaseError
+                .rejects.toThrow(BaseError); // Expect the wrapped BaseError from service
             await expect(service.deleteGroup(mockAdminUser, groupName))
-                .rejects.toHaveProperty('name', 'CleanupFailedError');
+                .rejects.toHaveProperty('name', 'CleanupFailedError'); // Check the specific name set by the service
             await expect(service.deleteGroup(mockAdminUser, groupName))
-                .rejects.toThrow(/failed to remove associated role assignments/);
+                .rejects.toThrow(/failed to remove associated role assignments/); // Check message
 
             expect(adapter.adminDeleteGroup).toHaveBeenCalledWith(groupName);
             expect(assignmentRepository.removeAllAssignmentsForGroup).toHaveBeenCalledWith(groupName);
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin successfully deleted Cognito group ${groupName}`), expect.any(Object));
-            expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to cleanup assignments'), expect.objectContaining({ error: cleanupError }));
-            // Final success log should NOT be called
-            expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('deleted group \'group-to-delete\' and cleaned up assignments'), expect.any(Object));
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`successfully deleted Cognito group ${groupName}`), expect.any(Object));
+            // Check that the specific cleanup error log message was called
+            expect(logger.error).toHaveBeenCalledWith(
+                expect.stringContaining(`Failed to cleanup assignments for deleted group ${groupName}`),
+                expect.objectContaining({ error: cleanupError })
+            );
+             // Final overall success log should NOT be called
+            expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(`successfully deleted group '${groupName}' and cleaned up assignments`), expect.any(Object));
         });
     });
 

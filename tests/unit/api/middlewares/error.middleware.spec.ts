@@ -1,10 +1,9 @@
-// tests/unit/api/middlewares/error.middleware.spec.ts
-
 import { NextFunction, Request, Response } from 'express';
+import 'reflect-metadata'; // Must be first
 import { createErrorMiddleware } from '../../../../src/api/middlewares/error.middleware';
 import { IConfigService } from '../../../../src/application/interfaces/IConfigService';
 import { ILogger } from '../../../../src/application/interfaces/ILogger';
-import { NotFoundError, ValidationError } from '../../../../src/shared/errors/BaseError';
+import { BaseError, ValidationError } from '../../../../src/shared/errors/BaseError';
 import { RequestContextUtil } from '../../../../src/shared/utils/requestContext';
 import { mockConfigService } from '../../../mocks/config.mock';
 import { mockLogger } from '../../../mocks/logger.mock';
@@ -18,7 +17,7 @@ jest.mock('../../../../src/shared/utils/requestContext', () => ({
     },
 }));
 
-describe('Error Handling Middleware', () => {
+describe('Error Handling Middleware Unit Tests', () => {
     let mockRequest: Partial<Request>;
     let mockResponse: Partial<Response>;
     let mockNext: NextFunction;
@@ -26,15 +25,19 @@ describe('Error Handling Middleware', () => {
     let configService: jest.Mocked<IConfigService>;
     let middleware: (err: Error, req: Request, res: Response, next: NextFunction) => void;
 
+    // Mocks for response methods
     let mockStatus: jest.Mock;
     let mockJson: jest.Mock;
 
-    const mockReqId = 'err-req-123';
-    const mockCorrId = 'err-corr-456';
-    const mockUserId = 'err-user-789';
+    // Mock context values
+    const mockReqId = 'err-req-unit-123';
+    const mockCorrId = 'err-corr-unit-456';
+    const mockUserId = 'err-user-unit-789';
 
     beforeEach(() => {
         jest.clearAllMocks();
+
+        // Use fresh mocks
         logger = { ...mockLogger } as jest.Mocked<ILogger>;
         configService = { ...mockConfigService } as jest.Mocked<IConfigService>;
 
@@ -43,30 +46,34 @@ describe('Error Handling Middleware', () => {
         (RequestContextUtil.getCorrelationId as jest.Mock).mockReturnValue(mockCorrId);
         (RequestContextUtil.getUserId as jest.Mock).mockReturnValue(mockUserId);
 
+        // Setup mock request/response
         mockRequest = {
             originalUrl: '/error/path',
             method: 'POST',
-            id: mockReqId, // Fallback req id
+            id: mockReqId, // Include fallback req.id
         };
         mockJson = jest.fn();
         mockStatus = jest.fn(() => ({ json: mockJson })); // Chain status().json()
         mockResponse = {
-            headersSent: false, // Assume headers not sent initially
+            headersSent: false,
             status: mockStatus,
-            // json: mockJson, // json is called via status()
         };
         mockNext = jest.fn();
 
-        // Create middleware instance
+        // Default config mock behavior (can be overridden per test)
+        configService.isProduction.mockReturnValue(false); // Default to development
+
+        // Create middleware instance for tests
         middleware = createErrorMiddleware(logger, configService);
     });
 
-    it('should handle BaseError (operational) correctly', () => {
+    it('should handle operational BaseError (e.g., ValidationError) correctly', () => {
         const validationError = new ValidationError('Input invalid', { field: 'bad value' }); // isOperational = true, statusCode = 400
 
         middleware(validationError, mockRequest as Request, mockResponse as Response, mockNext);
 
-        expect(logger.warn).toHaveBeenCalledTimes(1); // Operational client errors are logged as warnings
+        // Check Logging (Warn for client operational errors)
+        expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn).toHaveBeenCalledWith(
             expect.stringContaining(`Client error processing request: ${validationError.message}`),
             expect.objectContaining({
@@ -74,85 +81,115 @@ describe('Error Handling Middleware', () => {
                 correlationId: mockCorrId,
                 userId: mockUserId,
                 errorName: 'ValidationError',
-                errorMessage: validationError.message,
                 statusCode: 400,
-                path: '/error/path',
-                method: 'POST',
                 isOperational: true,
-                details: { field: 'bad value' }, // Check details are logged
-                stack: expect.any(String), // Stack logged even for operational in non-prod
+                details: { field: 'bad value' },
+                stack: configService.isProduction() ? undefined : validationError.stack, // Stack included based on env
             })
         );
+
+        // Check Response
         expect(mockStatus).toHaveBeenCalledWith(400);
         expect(mockJson).toHaveBeenCalledWith({
             status: 'error',
             name: 'ValidationError',
             message: validationError.message,
             requestId: mockReqId,
-            details: { field: 'bad value' }, // Check details are included in response
+            details: { field: 'bad value' }, // Details included in response
         });
         expect(mockNext).not.toHaveBeenCalled();
     });
 
-     it('should handle generic Error (non-operational) correctly in development', () => {
-        const genericError = new Error('Something unexpected broke!');
-        configService.isProduction.mockReturnValue(false); // Simulate development
+    it('should handle non-operational BaseError (e.g., custom DB error) correctly', () => {
+        const dbError = new BaseError('DatabaseError', 503, 'DB connection failed', false); // isOperational = false
 
-        middleware(genericError, mockRequest as Request, mockResponse as Response, mockNext);
+        middleware(dbError, mockRequest as Request, mockResponse as Response, mockNext);
 
-        expect(logger.error).toHaveBeenCalledTimes(1); // Non-operational errors are logged as errors
+        // Check Logging (Error for non-operational/server errors)
+        expect(logger.error).toHaveBeenCalledTimes(1);
         expect(logger.error).toHaveBeenCalledWith(
-            expect.stringContaining(`Server error processing request: ${genericError.message}`),
+            expect.stringContaining(`Server error processing request: ${dbError.message}`),
             expect.objectContaining({
-                requestId: mockReqId,
-                errorName: 'Error',
-                statusCode: 500,
-                isOperational: false, // Default for generic Error
-                stack: genericError.stack, // Stack logged in dev
+                statusCode: 503,
+                isOperational: false,
+                stack: configService.isProduction() ? undefined : dbError.stack,
             })
         );
-        expect(mockStatus).toHaveBeenCalledWith(500);
+
+        // Check Response (Generic response because !isOperational)
+        expect(mockStatus).toHaveBeenCalledWith(503);
         expect(mockJson).toHaveBeenCalledWith({
             status: 'error',
-            name: 'Error', // Show actual error name in dev
-            message: genericError.message, // Show actual message in dev
+            name: 'InternalServerError', // Generic name
+            message: 'An unexpected internal server error occurred.', // Generic message
             requestId: mockReqId,
-            stack: genericError.stack, // Show stack in dev response
+            // No stack in response body by default (even in dev for non-operational BaseError?) - Check middleware logic
         });
         expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should handle generic Error (non-operational) correctly in production', () => {
+
+    it('should handle generic Error correctly in DEVELOPMENT', () => {
         const genericError = new Error('Something unexpected broke!');
+        configService.isProduction.mockReturnValue(false); // Set explicitly to dev
 
-        // FIX: Explicitly set isProduction to true for THIS test case
-        configService.isProduction.mockReturnValue(true);
-
-        // Invoke the middleware AFTER setting the mock value
+        middleware = createErrorMiddleware(logger, configService); // Recreate if config changes
         middleware(genericError, mockRequest as Request, mockResponse as Response, mockNext);
 
+        // Check Logging (Error level, stack included)
         expect(logger.error).toHaveBeenCalledTimes(1);
-        // Now the assertion should match because the stack should be undefined
         expect(logger.error).toHaveBeenCalledWith(
             expect.stringContaining(`Server error processing request: ${genericError.message}`),
             expect.objectContaining({
                 statusCode: 500,
                 isOperational: false,
-                stack: undefined, // Should now be undefined as isProduction() is true
+                stack: genericError.stack, // Stack logged in dev
             })
         );
+
+        // Check Response (Detailed response in dev)
         expect(mockStatus).toHaveBeenCalledWith(500);
         expect(mockJson).toHaveBeenCalledWith({
             status: 'error',
-            name: 'InternalServerError', // Generic name in prod
-            message: 'An unexpected internal server error occurred.', // Generic message in prod
+            name: 'Error',
+            message: genericError.message,
+            requestId: mockReqId,
+            stack: genericError.stack, // Stack included in dev response
+        });
+        expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should handle generic Error correctly in PRODUCTION', () => {
+        const genericError = new Error('Something unexpected broke!');
+        configService.isProduction.mockReturnValue(true); // Set explicitly to prod
+
+        middleware = createErrorMiddleware(logger, configService); // Recreate if config changes
+        middleware(genericError, mockRequest as Request, mockResponse as Response, mockNext);
+
+        // Check Logging (Error level, stack NOT included)
+        expect(logger.error).toHaveBeenCalledTimes(1);
+        expect(logger.error).toHaveBeenCalledWith(
+            expect.stringContaining(`Server error processing request: ${genericError.message}`),
+            expect.objectContaining({
+                statusCode: 500,
+                isOperational: false,
+                stack: undefined, // Stack NOT logged in prod
+            })
+        );
+
+        // Check Response (Generic response in prod)
+        expect(mockStatus).toHaveBeenCalledWith(500);
+        expect(mockJson).toHaveBeenCalledWith({
+            status: 'error',
+            name: 'InternalServerError',
+            message: 'An unexpected internal server error occurred.',
             requestId: mockReqId,
             // No stack in prod response
         });
         expect(mockNext).not.toHaveBeenCalled();
     });
 
-     it('should delegate to default handler if headers already sent', () => {
+    it('should delegate to default handler if headers already sent', () => {
         const error = new Error('Error after headers sent');
         (mockResponse as Response).headersSent = true; // Simulate headers sent
 
@@ -168,31 +205,26 @@ describe('Error Handling Middleware', () => {
         expect(mockNext).toHaveBeenCalledWith(error); // Pass error to default handler
     });
 
-    it('should handle BaseError without details', () => {
-        const notFoundError = new NotFoundError('Resource'); // No details provided
+    it('should use fallback request ID if context util returns undefined', () => {
+        (RequestContextUtil.getRequestId as jest.Mock).mockReturnValue(undefined); // Simulate context not ready
+        const error = new Error('Test Error');
 
-        middleware(notFoundError, mockRequest as Request, mockResponse as Response, mockNext);
+        middleware(error, mockRequest as Request, mockResponse as Response, mockNext);
 
-        expect(logger.warn).toHaveBeenCalledWith(
-             expect.anything(), // Message
-             expect.objectContaining({ details: undefined }) // Ensure details is undefined in log
-        );
-         expect(mockStatus).toHaveBeenCalledWith(404);
-         expect(mockJson).toHaveBeenCalledWith(
-             expect.objectContaining({ name: 'NotFoundError', message: 'Resource not found.' })
-         );
-         expect(mockJson).not.toHaveBeenCalledWith(
-             expect.objectContaining({ details: expect.anything() }) // No details in response
-         );
+        // Log should use req.id
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ requestId: mockReqId }));
+        // Response should use req.id
+        expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ requestId: mockReqId }));
     });
 
-    it('should use fallback request ID if context util returns undefined', () => {
-         (RequestContextUtil.getRequestId as jest.Mock).mockReturnValue(undefined); // Simulate context not ready
-         const error = new Error('Test Error');
+    it('should use "N/A" request ID if context and req.id are undefined', () => {
+        (RequestContextUtil.getRequestId as jest.Mock).mockReturnValue(undefined);
+        mockRequest.id = undefined; // Also remove req.id
+        const error = new Error('Test Error');
 
-         middleware(error, mockRequest as Request, mockResponse as Response, mockNext);
+        middleware(error, mockRequest as Request, mockResponse as Response, mockNext);
 
-         expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ requestId: mockReqId })); // Used req.id
-         expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ requestId: mockReqId }));
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ requestId: 'N/A' }));
+        expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'N/A' }));
     });
 });

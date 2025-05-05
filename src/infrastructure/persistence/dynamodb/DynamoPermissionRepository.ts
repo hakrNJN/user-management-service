@@ -1,30 +1,43 @@
-import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
+import {
+    AttributeValue,
+    ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand,
+    QueryCommand, // <<< Import QueryCommand
+    QueryCommandInput, // <<< Import QueryCommandInput
+    UpdateItemCommand // <<< Import UpdateItemCommand
+} from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { inject, injectable } from "tsyringe";
 import { IConfigService } from "../../../application/interfaces/IConfigService";
 import { ILogger } from "../../../application/interfaces/ILogger";
 import { IPermissionRepository } from "../../../application/interfaces/IPermissionRepository";
 import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository";
 import { Permission } from "../../../domain/entities/Permission";
+import { PermissionExistsError } from "../../../domain/exceptions/UserManagementError"; // Import specific errors
 import { TYPES } from "../../../shared/constants/types";
 import { BaseError } from "../../../shared/errors/BaseError";
 import { DynamoDBProvider } from "./dynamodb.client";
 
 // Define an interface for the expected structure from DynamoDB
 interface PermissionDynamoItem {
-    PK: string;
-    SK: string;
+    PK: string;         // PERM#{permissionName}
+    SK: string;         // PERM#{permissionName}
     EntityType: 'Permission';
     permissionName: string; // This is the key field stored in the item
     description?: string;
     createdAt: string; // Stored as ISO string
     updatedAt: string; // Stored as ISO string
-    // Include any other fields you store for Permission items
+    // GSI Keys for listing by type
+    EntityTypeGSI_PK: string; // Value: 'Permission'
+    EntityTypeGSI_SK: string; // Value: PERM#{permissionName}
 }
+
+// Constants for GSI
+const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
 
 @injectable()
 export class DynamoPermissionRepository implements IPermissionRepository {
     private readonly tableName: string;
-    private readonly client: DynamoDBDocumentClient;
+    private readonly client: DynamoDBClient; // Use base client
 
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
@@ -32,49 +45,46 @@ export class DynamoPermissionRepository implements IPermissionRepository {
         @inject(DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
     ) {
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME'); // Use same table name
-        this.client = DynamoDBDocumentClient.from(dynamoDBProvider.client, {
-            marshallOptions: { removeUndefinedValues: true }
-        });
+        this.client = dynamoDBProvider.client;
     }
 
-    private mapToPermission(item: Record<string, any>): Permission {
-        // 1. Assert the item to the expected DynamoDB structure
-        const dynamoItem = item as PermissionDynamoItem;
-
-        // 2. Runtime check for the critical required field
-        if (typeof dynamoItem.permissionName !== 'string' || !dynamoItem.permissionName) {
-            this.logger.error('Invalid Permission item structure retrieved from DynamoDB: missing or invalid permissionName', { item: dynamoItem });
-            // Throw an error because we cannot create a valid Permission entity without its name
-            throw new BaseError('InvalidDataError', 500, 'Invalid permission data retrieved from database.', false);
+    private mapToPermission(item: Record<string, AttributeValue>): Permission {
+        const plainObject = unmarshall(item);
+        try {
+            return Permission.fromPersistence(plainObject as any);
+        } catch (error: any) {
+            this.logger.error("Failed to map DynamoDB item to Permission entity", { itemPK: item.PK?.S, error: error.message, item });
+            throw new BaseError('InvalidDataError', 500, `Invalid permission data retrieved from database: ${error.message}`, false);
         }
-
-        // 3. Pass the validated data (or the asserted object) to the factory method
-        //    The factory method already handles optional fields and Date parsing.
-        return Permission.fromPersistence(dynamoItem);
     }
 
-    private createKey(permissionName: string) {
-        return { PK: `PERM#${permissionName}`, SK: `PERM#${permissionName}` };
+    private createKey(permissionName: string): Record<string, AttributeValue> {
+        const key = `PERM#${permissionName}`;
+        return marshall({ PK: key, SK: key });
     }
 
     async create(permission: Permission): Promise<void> {
         const item = {
-            ...this.createKey(permission.permissionName),
+            PK: `PERM#${permission.permissionName}`,
+            SK: `PERM#${permission.permissionName}`,
             EntityType: 'Permission',
             ...permission.toPersistence(),
+            // Add GSI keys
+            EntityTypeGSI_PK: 'Permission',
+            EntityTypeGSI_SK: `PERM#${permission.permissionName}`,
         };
-        const command = new PutCommand({
+        const command = new PutItemCommand({
             TableName: this.tableName,
-            Item: item,
-            ConditionExpression: 'attribute_not_exists(PK)'
+            Item: marshall(item, { removeUndefinedValues: true }),
+            ConditionExpression: 'attribute_not_exists(PK)' // Prevent overwriting existing permission
         });
         try {
             await this.client.send(command);
             this.logger.info(`Permission created successfully: ${permission.permissionName}`);
         } catch (error: any) {
-            if (error.name === 'ConditionalCheckFailedException') {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
                 this.logger.warn(`Failed to create permission, already exists: ${permission.permissionName}`);
-                throw new BaseError('PermissionExistsError', 409, `Permission '${permission.permissionName}' already exists.`);
+                throw new PermissionExistsError(permission.permissionName); // Throw specific error
             }
             this.logger.error(`Error creating permission ${permission.permissionName}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to create permission: ${error.message}`);
@@ -82,7 +92,7 @@ export class DynamoPermissionRepository implements IPermissionRepository {
     }
 
     async findByName(permissionName: string): Promise<Permission | null> {
-        const command = new GetCommand({
+        const command = new GetItemCommand({
             TableName: this.tableName,
             Key: this.createKey(permissionName)
         });
@@ -96,42 +106,87 @@ export class DynamoPermissionRepository implements IPermissionRepository {
         }
     }
 
+    // *** MODIFIED list METHOD ***
     async list(options?: QueryOptions): Promise<QueryResult<Permission>> {
-        this.logger.warn("Listing permissions using Scan operation. Consider using a GSI for performance.");
-        const commandInput: ScanCommandInput = {
+        this.logger.debug("Listing permissions using Query on GSI", { options });
+        const commandInput: QueryCommandInput = {
             TableName: this.tableName,
-            FilterExpression: "EntityType = :type",
-            ExpressionAttributeValues: { ":type": "Permission" },
+            IndexName: ENTITY_TYPE_GSI_NAME, // <<< Query the GSI
+            KeyConditionExpression: "EntityTypeGSI_PK = :type", // <<< Query GSI PK
+            ExpressionAttributeValues: marshall({
+                 ":type": "Permission"
+            }),
             Limit: options?.limit,
-            ExclusiveStartKey: options?.startKey,
+            ExclusiveStartKey: options?.startKey, // Pass opaque key directly
+            ScanIndexForward: true, // Default, optional (sorts by GSI SK - which is PK here)
         };
-        const command = new ScanCommand(commandInput);
+        const command = new QueryCommand(commandInput); // <<< Use QueryCommand
         try {
             const result = await this.client.send(command);
             const permissions = result.Items?.map(item => this.mapToPermission(item)) || [];
             return {
                 items: permissions,
-                lastEvaluatedKey: result.LastEvaluatedKey,
+                lastEvaluatedKey: result.LastEvaluatedKey ? result.LastEvaluatedKey as Record<string, any> : undefined,
             };
         } catch (error: any) {
-            this.logger.error(`Error listing permissions`, error);
+            this.logger.error(`Error listing permissions via GSI`, error);
             throw new BaseError('DatabaseError', 500, `Failed to list permissions: ${error.message}`);
         }
     }
 
+    // *** MODIFIED update METHOD ***
     async update(permissionName: string, updates: Partial<Pick<Permission, 'description'>>): Promise<Permission | null> {
-        // Implement DynamoDB UpdateCommand logic
-        this.logger.warn(`Permission update not fully implemented yet.`);
-        // Placeholder: Fetch, update in memory, save
-        const existing = await this.findByName(permissionName);
-        if (!existing) return null;
-        existing.update(updates);
-        await this.create(existing); // Put will overwrite
-        return existing;
+        const key = this.createKey(permissionName);
+        const now = new Date().toISOString();
+
+        // Construct UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues
+        const updateExpressionParts: string[] = ['SET updatedAt = :now'];
+        const expressionAttributeNames: Record<string, string> = {}; // Use if attribute names conflict with reserved words
+        const expressionAttributeValues: Record<string, any> = { ':now': now };
+
+        // Only add updates for fields actually provided
+        if (updates.description !== undefined) {
+            updateExpressionParts.push('description = :desc');
+            expressionAttributeValues[':desc'] = updates.description;
+        } else {
+             // If explicitly set to undefined or null in DTO, you might want to REMOVE the attribute
+             // updateExpressionParts.push('REMOVE description');
+             // This requires careful handling based on DTO definition (using null vs undefined)
+        }
+        // Add other updatable fields here
+
+        const command = new UpdateItemCommand({
+            TableName: this.tableName,
+            Key: key,
+            UpdateExpression: updateExpressionParts.join(', '),
+            // ExpressionAttributeNames: expressionAttributeNames, // Include if needed
+            ExpressionAttributeValues: marshall(expressionAttributeValues),
+            ConditionExpression: 'attribute_exists(PK)', // Ensure the item exists
+            ReturnValues: 'ALL_NEW', // Return the updated item
+        });
+
+        try {
+            const result = await this.client.send(command);
+            if (!result.Attributes) {
+                 // Should not happen if ReturnValues is ALL_NEW and condition passes, but check anyway
+                 this.logger.error("UpdateItem succeeded but returned no attributes", { permissionName });
+                 throw new BaseError('DatabaseError', 500, 'Failed to retrieve updated permission attributes.');
+            }
+            this.logger.info(`Permission updated successfully: ${permissionName}`);
+            return this.mapToPermission(result.Attributes); // Map the returned updated item
+        } catch (error: any) {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
+                 this.logger.warn(`Failed to update permission, not found: ${permissionName}`);
+                 return null; // Return null if the item didn't exist
+            }
+            this.logger.error(`Error updating permission ${permissionName}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to update permission: ${error.message}`);
+        }
     }
 
+
     async delete(permissionName: string): Promise<boolean> {
-        const command = new DeleteCommand({
+        const command = new DeleteItemCommand({
             TableName: this.tableName,
             Key: this.createKey(permissionName),
             ConditionExpression: 'attribute_exists(PK)'
@@ -139,10 +194,10 @@ export class DynamoPermissionRepository implements IPermissionRepository {
         try {
             await this.client.send(command);
             this.logger.info(`Permission deleted successfully: ${permissionName}`);
-            // TODO: Trigger cleanup of assignments via IAssignmentRepository
+            // Note: Cleanup of assignments should be handled by the service layer calling the AssignmentRepository
             return true;
         } catch (error: any) {
-            if (error.name === 'ConditionalCheckFailedException') {
+            if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
                 this.logger.warn(`Failed to delete permission, not found: ${permissionName}`);
                 return false;
             }

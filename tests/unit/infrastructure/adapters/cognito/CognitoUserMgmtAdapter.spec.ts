@@ -1,3 +1,4 @@
+// tests/unit/infrastructure/adapters/cognito/CognitoUserMgmtAdapter.spec.ts
 import {
     AdminAddUserToGroupCommand,
     AdminCreateUserCommand, AdminDeleteUserCommand, AdminDisableUserCommand, AdminEnableUserCommand, AdminGetUserCommand, AdminGetUserCommandOutput, AdminListGroupsForUserCommand, AdminRemoveUserFromGroupCommand, AdminResetUserPasswordCommand, AdminSetUserPasswordCommand, // <-- Import Output type
@@ -13,6 +14,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { mockClient } from 'aws-sdk-client-mock';
 import 'aws-sdk-client-mock-jest'; // Extends Jest expect
+import 'reflect-metadata';
 import { IConfigService } from '../../../../../src/application/interfaces/IConfigService';
 import { ILogger } from '../../../../../src/application/interfaces/ILogger';
 import { AdminCreateUserDetails, AdminUpdateUserAttributesDetails, CreateGroupDetails, ListUsersOptions } from '../../../../../src/application/interfaces/IUserMgmtAdapter';
@@ -45,14 +47,9 @@ describe('CognitoUserMgmtAdapter', () => {
         // --- FIX: Configure mockConfigService for THIS test suite ---
         // Ensure getOrThrow returns the necessary values for constructor
         configService.getOrThrow.mockImplementation((key: string): string => {
-            if (key === 'AWS_REGION') {
-                return MOCK_AWS_REGION;
-            }
-            if (key === 'COGNITO_USER_POOL_ID') {
-                return MOCK_USER_POOL_ID; // <-- Return the mock pool ID
-            }
-            // If other required configs were added to constructor, mock them too
-            throw new Error(`MockConfigService: Missing mock for required key "${key}" in getOrThrow`);
+            if (key === 'AWS_REGION') return MOCK_AWS_REGION;
+            if (key === 'COGNITO_USER_POOL_ID') return MOCK_USER_POOL_ID;
+            throw new Error(`MockConfigService: Missing mock for required key "${key}"`);
         });
         // If adapter constructor *also* uses .get(), mock that too if necessary
         configService.get.mockImplementation((key: string, defaultValue?: any): any => {
@@ -67,8 +64,11 @@ describe('CognitoUserMgmtAdapter', () => {
         adapter = new CognitoUserMgmtAdapter(configService, logger);
     });
 
-    it('should be defined', () => {
+    it('should initialize correctly', () => {
         expect(adapter).toBeDefined();
+        expect(configService.getOrThrow).toHaveBeenCalledWith('AWS_REGION');
+        expect(configService.getOrThrow).toHaveBeenCalledWith('COGNITO_USER_POOL_ID');
+        expect(logger.info).toHaveBeenCalledWith('CognitoUserMgmtAdapter initialized', expect.any(Object));
     });
 
     // --- Test adminCreateUser ---

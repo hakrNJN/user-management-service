@@ -8,8 +8,14 @@ export class AuthenticationError extends BaseError {
     constructor(message = 'Authentication Failed', statusCode = 401) {
         // 401 Unauthorized is typical, but could be overridden (e.g., 403 for confirmed but forbidden)
         super('AuthenticationError', statusCode, message, true); // isOperational = true
+        // Ensure the stack trace points correctly to where the error was instantiated
+        if (typeof Error.captureStackTrace === 'function') {
+            Error.captureStackTrace(this, this.constructor);
+        }
+        Object.setPrototypeOf(this, new.target.prototype);
     }
 }
+
 
 // --- Specific Authentication Errors ---
 
@@ -44,7 +50,7 @@ export class UserNotConfirmedError extends AuthenticationError {
 }
 
 export class PasswordResetRequiredError extends AuthenticationError {
-     constructor(message = 'Password reset is required for this user.') {
+    constructor(message = 'Password reset is required for this user.') {
         super(message, 400); // Bad Request or maybe a custom code/redirect
         this.name = 'PasswordResetRequiredError';
     }
@@ -57,6 +63,11 @@ export class UserManagementError extends BaseError {
     constructor(message = 'User management operation failed', statusCode = 400) {
         // Default to 400 Bad Request, but can be overridden
         super('UserManagementError', statusCode, message, true); // isOperational = true
+        // Ensure the stack trace points correctly to where the error was instantiated
+        if (typeof Error.captureStackTrace === 'function') {
+            Error.captureStackTrace(this, this.constructor);
+        }
+        Object.setPrototypeOf(this, new.target.prototype);
     }
 }
 
@@ -98,7 +109,7 @@ export class UserAlreadyInGroupError extends UserManagementError {
 }
 
 export class GroupExistsError extends UserManagementError {
-     constructor(groupName: string) {
+    constructor(groupName: string) {
         super(`Group '${groupName}' already exists.`, 409); // 409 Conflict
         this.name = 'GroupExistsError';
     }
@@ -106,23 +117,70 @@ export class GroupExistsError extends UserManagementError {
 
 export class RoleExistsError extends UserManagementError { // New
     constructor(roleName: string) {
-       super(`Role '${roleName}' already exists.`, 409); // 409 Conflict
-       this.name = 'RoleExistsError';
-   }
+        super(`Role '${roleName}' already exists.`, 409); // 409 Conflict
+        this.name = 'RoleExistsError';
+    }
 }
 
 export class PermissionExistsError extends UserManagementError { // New
     constructor(permissionName: string) {
-       super(`Permission '${permissionName}' already exists.`, 409); // 409 Conflict
-       this.name = 'PermissionExistsError';
-   }
+        super(`Permission '${permissionName}' already exists.`, 409); // 409 Conflict
+        this.name = 'PermissionExistsError';
+    }
 }
 
 export class AssignmentError extends UserManagementError { // New - Generic for assignment issues
     constructor(message: string) {
-       super(message, 400); // Bad Request often suitable
-       this.name = 'AssignmentError';
-   }
+        super(message, 400); // Bad Request often suitable
+        this.name = 'AssignmentError';
+    }
 }
 
 // Add other specific errors as needed
+
+// --- Specific Policy Errors ---
+
+export class PolicyNotFoundError extends UserManagementError {
+    constructor(identifier: string) { // identifier could be name or ID
+        super(`Policy with identifier '${identifier}' not found.`, 404);
+        this.name = 'PolicyNotFoundError';
+    }
+}
+
+export class PolicyExistsError extends UserManagementError {
+    constructor(policyName: string) {
+        super(`Policy '${policyName}' already exists.`, 409); // 409 Conflict
+        this.name = 'PolicyExistsError';
+    }
+}
+
+export class InvalidPolicySyntaxError extends BaseError { // Inherit directly from BaseError
+    public readonly policyName: string;
+    public readonly language: string;
+
+    constructor(policyName: string, language: string, details?: any) {
+        const message = `Policy '${policyName}' has invalid syntax for language '${language}'.`;
+        // Call BaseError constructor directly: (name, statusCode, message, isOperational, details)
+        super('InvalidPolicySyntaxError', 400, message, true, details);
+        this.policyName = policyName;
+        this.language = language;
+        // Ensure the stack trace points correctly to where the error was instantiated
+        if (typeof Error.captureStackTrace === 'function') {
+            Error.captureStackTrace(this, this.constructor);
+        }
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+
+export class PolicyEngineAdapterError extends BaseError { // Inherit directly from BaseError
+    constructor(message: string, operation: string, underlyingError?: any) {
+        // Typically a server-side issue interacting with the policy engine/storage
+        super('PolicyEngineAdapterError', 500, `Policy Engine Adapter failed during operation '${operation}': ${message}`, false, { underlyingError: underlyingError?.message });
+        this.name = 'PolicyEngineAdapterError';
+        // Ensure the stack trace points correctly to where the error was instantiated
+        if (typeof Error.captureStackTrace === 'function') {
+            Error.captureStackTrace(this, this.constructor);
+        }
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}

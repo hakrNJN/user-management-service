@@ -1,3 +1,5 @@
+//src\shared\constants\index.ts
+
 export const APP_CONSTANTS = {
     VERSION: '1.0.0',
     SERVICE_NAME: 'user-management-service', // Updated service name

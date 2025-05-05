@@ -1,4 +1,5 @@
 // tests/mocks/adapter.mock.ts (Example - reuse/adapt your existing mocks)
+import { IPolicyEngineAdapter } from "../../src/application/interfaces/IPolicyEngineAdapter";
 import { IUserMgmtAdapter } from "../../src/application/interfaces/IUserMgmtAdapter";
 
 export const mockUserMgmtAdapter: jest.Mocked<IUserMgmtAdapter> = {
@@ -20,4 +21,12 @@ export const mockUserMgmtAdapter: jest.Mocked<IUserMgmtAdapter> = {
     adminDeleteGroup: jest.fn(),
     adminGetGroup: jest.fn(),
     adminListGroups: jest.fn(),
+};
+
+export const mockPolicyEngineAdapter: jest.Mocked<IPolicyEngineAdapter> = {
+    publishPolicy: jest.fn(),
+    getPolicyDefinition: jest.fn(),
+    deletePolicyDefinition: jest.fn(),
+    validatePolicySyntax: jest.fn(),
+    // listPolicyDefinitions: jest.fn(), // Uncomment if using optional method
 };

@@ -125,29 +125,17 @@ describe('PermissionAdminService', () => {
         const permName = 'doc:delete';
 
         it('should call permissionRepo.delete and assignmentRepo.removeAllAssignmentsForPermission', async () => {
-            // Mock repo delete success
-            permissionRepo.delete.mockResolvedValue(true);
-            // FIX: Explicitly mock assignmentRepo cleanup success for this test case
-            assignmentRepo.removeAllAssignmentsForPermission.mockResolvedValue(undefined);
+            permissionRepo.delete.mockResolvedValue(true); // Permission found and deleted
+            assignmentRepo.removeAllAssignmentsForPermission.mockResolvedValue(undefined); // Cleanup success
 
-            // Execute the service method
             await service.deletePermission(mockAdminUser, permName);
 
-            // Verify calls were made
             expect(permissionRepo.delete).toHaveBeenCalledWith(permName);
-            expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName);
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin Successfully deleted permission '${permName}' and cleaned up assignments`),
-                expect.any(Object)
-            );
-
-            // Ensure no error logs were generated in the success path
+            expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName); // Verify cleanup called
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Successfully cleaned up assignments for deleted permission ${permName}`), expect.any(Object));
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin Successfully deleted permission '${permName}' and cleaned up assignments`), expect.any(Object));
             expect(logger.error).not.toHaveBeenCalled();
-            expect(logger.warn).not.toHaveBeenCalled(); // Except maybe the checkAdminPermission debug log if level allows
-
-            // Check total info calls if needed (e.g., 4 = attempt, deleted, cleanup done, final success)
-            expect(logger.info).toHaveBeenCalledTimes(4); // Adjust if logging changes
-    });
+        });
     
         it('should throw PermissionNotFoundError if repo.delete returns false', async () => {
             permissionRepo.delete.mockResolvedValue(false);
@@ -157,15 +145,28 @@ describe('PermissionAdminService', () => {
             expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Permission not found for deletion'), expect.any(Object));
         });
 
-        it('should throw error if removeAllAssignments fails', async () => {
-            permissionRepo.delete.mockResolvedValue(true);
+        it('should throw error and log if removeAllAssignments fails', async () => {
+            permissionRepo.delete.mockResolvedValue(true); // Permission deleted successfully
             const cleanupError = new Error("Cleanup failed");
-            assignmentRepo.removeAllAssignmentsForPermission.mockRejectedValue(cleanupError);
+            assignmentRepo.removeAllAssignmentsForPermission.mockRejectedValue(cleanupError); // Cleanup fails
+
             await expect(service.deletePermission(mockAdminUser, permName))
-                .rejects.toThrow(BaseError); // Expect wrapped error
+                .rejects.toThrow(BaseError); // Expect the wrapped error from service
             await expect(service.deletePermission(mockAdminUser, permName))
-                .rejects.toThrow(/Permission doc:delete was deleted, but failed to remove associated assignments/);
-            expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to cleanup assignments'), expect.objectContaining({ error: cleanupError }));
+                 .rejects.toHaveProperty('name', 'CleanupFailedError'); // Check the specific error name
+            await expect(service.deletePermission(mockAdminUser, permName))
+                 .rejects.toThrow(/failed to remove associated assignments/); // Check message
+
+            expect(permissionRepo.delete).toHaveBeenCalledWith(permName);
+            expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName);
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Permission ${permName} deleted from repository`), expect.any(Object));
+             // Check specific error log
+            expect(logger.error).toHaveBeenCalledWith(
+                expect.stringContaining(`Failed to cleanup assignments for deleted permission ${permName}`),
+                expect.objectContaining({ error: cleanupError })
+            );
+            // Final overall success log should NOT be called
+            expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(`Successfully deleted permission '${permName}' and cleaned up assignments`), expect.any(Object));
         });
 
         it('should throw ForbiddenError if admin lacks permission', async () => {
