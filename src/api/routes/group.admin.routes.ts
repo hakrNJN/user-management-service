@@ -4,6 +4,7 @@ import { container } from '../../container';
 import { TYPES } from '../../shared/constants/types';
 import { GroupAdminController } from '../controllers/group.admin.controller';
 import { createAdminAuthGuardMiddleware } from '../middlewares/admin.auth.guard.middleware';
+import { jwtAuthMiddleware } from '../middlewares/jwtAuth.middleware';
 import { validationMiddleware } from '../middlewares/validation.middleware';
 // Import DTO Schemas
 import { CreateGroupAdminSchema, GroupNameParamsSchema } from '../dtos/create-group.admin.dto';
@@ -13,13 +14,14 @@ import { GroupRoleAssignSchema, GroupRoleUnassignSchema } from '../dtos/role-per
 // Resolve dependencies
 const groupAdminController = container.resolve(GroupAdminController);
 const logger = container.resolve<ILogger>(TYPES.Logger);
-const adminGuard = createAdminAuthGuardMiddleware('admin');
+const adminGuard = createAdminAuthGuardMiddleware('group-admin');
 
 // Create router instance
 const router = Router();
 
-// Apply admin guard to all group routes
-router.use(adminGuard);
+// Apply middleware
+router.use(jwtAuthMiddleware()); // Apply JWT authentication first
+router.use(adminGuard); // Then apply admin guard
 
 // --- Group Management Routes (Cognito Groups) ---
 

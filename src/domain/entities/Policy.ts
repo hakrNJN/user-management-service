@@ -8,7 +8,7 @@ interface PolicyDynamoItem {
     policyDefinition: string;
     policyLanguage: string;
     description?: string;
-    version?: string;
+    version: number;
     metadata?: Record<string, any>;
     createdAt: string;
     updatedAt: string;
@@ -29,10 +29,10 @@ export class Policy {
         public policyDefinition: string,
         /** The language of the policy definition (e.g., 'rego', 'cedar'). */
         public policyLanguage: string,
+        /** The version of the policy. */
+        public version: number,
         /** Optional description of the policy's purpose. */
         public description?: string,
-        /** Optional version identifier (e.g., semantic version '1.0.0'). */
-        public version?: string,
         /** Optional metadata (e.g., tags, owner, related resources). */
         public metadata?: Record<string, any>,
         /** Timestamp of creation. */
@@ -50,7 +50,6 @@ export class Policy {
         description?: string;
         policyDefinition?: string;
         policyLanguage?: string;
-        version?: string;
         metadata?: Record<string, any>;
     }): void {
         if (updates.policyName !== undefined) this.policyName = updates.policyName;
@@ -58,8 +57,6 @@ export class Policy {
         if (updates.description !== undefined) this.description = updates.description || undefined;
         if (updates.policyDefinition !== undefined) this.policyDefinition = updates.policyDefinition;
         if (updates.policyLanguage !== undefined) this.policyLanguage = updates.policyLanguage;
-        // Allow explicitly setting version to undefined or an empty string
-        if (updates.version !== undefined) this.version = updates.version || undefined;
         if (updates.metadata !== undefined) this.metadata = updates.metadata;
 
         this.updatedAt = new Date();
@@ -74,8 +71,8 @@ export class Policy {
         policyName: string;
         policyDefinition: string;
         policyLanguage: string;
+        version: number;
         description?: string;
-        version?: string;
         metadata?: Record<string, any>;
         createdAt?: string | Date;
         updatedAt?: string | Date;
@@ -89,8 +86,8 @@ export class Policy {
             data.policyName,
             data.policyDefinition,
             data.policyLanguage,
-            data.description,
             data.version,
+            data.description,
             data.metadata,
             data.createdAt ? new Date(data.createdAt) : new Date(),
             data.updatedAt ? new Date(data.updatedAt) : new Date()

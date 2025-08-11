@@ -65,4 +65,31 @@ export interface IPolicyAdminService {
      * @throws {PolicyNotFoundError | PolicyEngineAdapterError | BaseError}
      */
     deletePolicy(adminUser: AdminUser, identifier: string): Promise<void>;
+
+    /**
+     * Retrieves a specific version of a policy.
+     * @param adminUser - The authenticated admin performing the action.
+     * @param policyId - The ID of the policy.
+     * @param version - The specific version number to retrieve.
+     * @returns A promise resolving to the Policy domain entity or null if not found.
+     */
+    getPolicyVersion(adminUser: AdminUser, policyId: string, version: number): Promise<Policy | null>;
+
+    /**
+     * Lists all historical versions of a policy.
+     * @param adminUser - The authenticated admin performing the action.
+     * @param policyId - The ID of the policy.
+     * @returns A promise resolving to an array of Policy domain entities, sorted by version.
+     */
+    listPolicyVersions(adminUser: AdminUser, policyId: string): Promise<Policy[]>;
+
+    /**
+     * Rolls back a policy to a specific version.
+     * @param adminUser - The authenticated admin performing the action.
+     * @param policyId - The ID of the policy to roll back.
+     * @param version - The version number to roll back to.
+     * @returns A promise resolving to the rolled-back Policy domain entity.
+     * @throws {PolicyNotFoundError | PolicyVersionNotFoundError | BaseError}
+     */
+    rollbackPolicy(adminUser: AdminUser, policyId: string, version: number): Promise<Policy>;
 }

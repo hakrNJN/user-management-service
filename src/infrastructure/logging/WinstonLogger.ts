@@ -1,6 +1,7 @@
 import { inject, injectable } from 'tsyringe';
 import winston from 'winston';
 import CloudWatchTransport from 'winston-cloudwatch';
+import { ElasticsearchTransport } from 'winston-elasticsearch';
 import { IConfigService } from '../../application/interfaces/IConfigService';
 import { ILogger } from '../../application/interfaces/ILogger';
 import { TYPES } from '../../shared/constants/types';
@@ -48,6 +49,19 @@ export class WinstonLogger implements ILogger {
 
                 logger.add(cloudWatchTransport);
                 console.info(`[WinstonLogger] CloudWatch transport configured for group "${logGroupName}" and stream "${logStreamName}"`);
+            }
+        }
+
+        // Add centralized logging configuration here (e.g., ELK stack, Datadog)
+        if (nodeEnv === 'production') {
+            const elasticsearchHost = this.configService.get('ELASTICSEARCH_HOST');
+            if (elasticsearchHost) {
+                logger.add(new ElasticsearchTransport({
+                    level: logLevel,
+                    clientOpts: { node: elasticsearchHost },
+                    index: 'user-management-service-logs',
+                }));
+                console.info(`[WinstonLogger] Elasticsearch transport configured for host "${elasticsearchHost}"`);
             }
         }
 

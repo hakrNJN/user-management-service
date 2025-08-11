@@ -19,6 +19,7 @@ const policyDefinitionSchema = z.string({ required_error: "Policy definition (co
     .min(1, "Policy definition cannot be empty.");
 
 const policyIdSchema = z.string().uuid({ message: "Policy ID must be a valid UUID" }); // Assuming UUIDs for IDs
+const policyVersionSchema = z.number().int().positive({ message: "Policy version must be a positive integer" });
 
 // --- Create Policy DTO ---
 export const CreatePolicyAdminSchema = z.object({
@@ -27,7 +28,6 @@ export const CreatePolicyAdminSchema = z.object({
         policyDefinition: policyDefinitionSchema,
         policyLanguage: policyLanguageSchema,
         description: z.string().max(2048).optional(),
-        version: z.string().max(50).optional(), // e.g., semantic version
         metadata: z.record(z.any()).optional(), // Allow any JSON structure for metadata
     }),
 });
@@ -44,7 +44,6 @@ export const UpdatePolicyAdminSchema = z.object({
         policyDefinition: policyDefinitionSchema.optional(),
         policyLanguage: policyLanguageSchema.optional(),
         description: z.string().max(2048).optional(), // REMOVED .nullable()
-        version: z.string().max(50).optional(),       // REMOVED .nullable()
         metadata: z.record(z.any()).optional(),      // REMOVED .nullable()
     }).refine(data => Object.keys(data).length > 0, {
         message: "At least one field must be provided for update.",
@@ -61,6 +60,24 @@ export const PolicyIdParamsSchema = z.object({
     }),
 });
 export type PolicyIdParamsDto = z.infer<typeof PolicyIdParamsSchema>['params'];
+
+// --- Policy Version Params DTO ---
+export const PolicyVersionParamsSchema = z.object({
+    params: z.object({
+        policyId: policyIdSchema,
+        version: z.string().transform(Number).pipe(policyVersionSchema), // Transform string from URL to number
+    }),
+});
+export type PolicyVersionParamsDto = z.infer<typeof PolicyVersionParamsSchema>['params'];
+
+// --- Rollback Policy DTO ---
+export const RollbackPolicySchema = z.object({
+    params: z.object({
+        policyId: policyIdSchema,
+        version: z.string().transform(Number).pipe(policyVersionSchema), // Transform string from URL to number
+    }),
+});
+export type RollbackPolicyDto = z.infer<typeof RollbackPolicySchema>['params'];
 
 // Alternative: Allow identifying by name as well
 // export const PolicyIdentifierParamsSchema = z.object({

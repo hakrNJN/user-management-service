@@ -25,6 +25,12 @@ export class EnvironmentConfigService implements IConfigService {
     ];
 
     constructor() {
+        // TODO: Integrate with a dedicated secret management solution (e.g., AWS Secrets Manager, HashiCorp Vault).
+        // This would involve fetching secrets at startup and populating `this.config` with them.
+        // Example:
+        // const fetchedSecrets = await getSecretsFromAwsSecretsManager();
+        // this.config = { ...process.env, ...fetchedSecrets };
+
         // --- Rely on process.env populated by Node's --env-file flag ---
         console.info(`[ConfigService] Reading configuration from process.env (expected to be populated by --env-file)`);
         this.config = process.env;

@@ -5,6 +5,12 @@ import { z } from 'zod';
  */
 export const CreateUserAdminSchema = z.object({
     body: z.object({
+        // TODO: Add deeper semantic validation here.
+        // For example, validate username uniqueness (requires service call).
+        // Validate email format more strictly if needed.
+        // Check for strong password policies if temporaryPassword is provided.
+        // Validate custom attributes against business rules.
+
         username: z.string({ required_error: 'Username is required' })
             .min(3).max(128), // Adjust constraints as needed
 

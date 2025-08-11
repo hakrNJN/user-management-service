@@ -41,6 +41,21 @@ export interface IPolicyRepository {
      */
     delete(policyId: string): Promise<boolean>;
 
+    /**
+     * Retrieves a specific version of a policy by its ID and version number.
+     * @param policyId - The ID of the policy.
+     * @param version - The specific version number to retrieve.
+     * @returns A promise resolving to the Policy entity or null if not found.
+     */
+    getPolicyVersion(policyId: string, version: number): Promise<Policy | null>;
+
+    /**
+     * Lists all historical versions of a policy by its ID.
+     * @param policyId - The ID of the policy.
+     * @returns A promise resolving to an array of Policy entities, sorted by version.
+     */
+    listPolicyVersions(policyId: string): Promise<Policy[]>;
+
     // Note: Update is handled via findById/findByName + policy.update() + save() in the service layer,
     // allowing domain logic within the entity's update method. Alternatively, add an update method here
     // that takes partial updates if preferred, but ensure atomicity if needed.

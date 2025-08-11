@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { container } from '../../container';
 import { UserAdminController } from '../controllers/user.admin.controller';
 import { createAdminAuthGuardMiddleware } from '../middlewares/admin.auth.guard.middleware'; // Import admin guard factory
+import { jwtAuthMiddleware } from '../middlewares/jwtAuth.middleware';
 import { validationMiddleware } from '../middlewares/validation.middleware';
 // Import DTO Schemas
 import { AddUserToGroupAdminSchema, RemoveUserFromGroupAdminSchema } from '../dtos/add-user-to-group.admin.dto';
@@ -18,13 +19,14 @@ const userAdminController = container.resolve(UserAdminController);
 const logger = container.resolve<ILogger>(TYPES.Logger);
 
 // Create admin guard instance (assuming 'admin' is the required role/group)
-const adminGuard = createAdminAuthGuardMiddleware('admin'); // <<< Specify required role/group name
+const adminGuard = createAdminAuthGuardMiddleware('user-admin'); // <<< Specify required role/group name
 
 // Create router instance
 const router = Router();
 
 // Apply admin guard to all routes in this file
-router.use(adminGuard);
+router.use(jwtAuthMiddleware()); // Apply JWT authentication first
+router.use(adminGuard); // Then apply admin guard
 
 // --- User Management Routes ---
 
