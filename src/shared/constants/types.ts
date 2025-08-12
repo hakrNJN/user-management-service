@@ -32,6 +32,7 @@ export const TYPES = {
     PolicyAdminService: Symbol.for('PolicyAdminService'), // Service for policy admin logic
     PolicyRepository: Symbol.for('PolicyRepository'),     // Repository for policy data access
     PolicyEngineAdapter: Symbol.for('PolicyEngineAdapter'), // Adapter for policy storage/management interaction
+    PolicyService: Symbol.for('PolicyService'),
 
     // API Layer (Controllers - New)
     PolicyAdminController: Symbol.for('PolicyAdminController'), // Controller for policy admin logic

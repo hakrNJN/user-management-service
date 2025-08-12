@@ -56,6 +56,12 @@ export interface IPolicyRepository {
      */
     listPolicyVersions(policyId: string): Promise<Policy[]>;
 
+    /**
+     * Retrieves all policies from the repository.
+     * @returns A promise resolving to an array of all Policy entities.
+     */
+    getAllPolicies(): Promise<Policy[]>;
+
     // Note: Update is handled via findById/findByName + policy.update() + save() in the service layer,
     // allowing domain logic within the entity's update method. Alternatively, add an update method here
     // that takes partial updates if preferred, but ensure atomicity if needed.

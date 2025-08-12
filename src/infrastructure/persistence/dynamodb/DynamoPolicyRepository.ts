@@ -52,3 +52,27 @@
             throw new BaseError('DatabaseError', 500, `Failed to list policy versions: ${error.message}`);
         }
     }
+
+    async getAllPolicies(): Promise<Policy[]> {
+        this.logger.info('Fetching all policies from DynamoDB.');
+        const commandInput: ScanCommandInput = {
+            TableName: this.tableName,
+            FilterExpression: "EntityType = :type",
+            ExpressionAttributeValues: marshall({
+                ":type": "Policy"
+            }),
+        };
+        const command = new ScanCommand(commandInput);
+
+        try {
+            const result = await this.client.send(command);
+            if (!result.Items || result.Items.length === 0) {
+                return [];
+            }
+            return result.Items.map(item => this.mapToPolicy(item));
+        } catch (error: any) {
+            this.logger.error('Error fetching all policies from DynamoDB', error);
+            throw new BaseError('DatabaseError', 500, `Failed to fetch all policies: ${error.message}`);
+        }
+    }
+}

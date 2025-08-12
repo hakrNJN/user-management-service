@@ -15,6 +15,7 @@ import { IRoleAdminService } from './application/interfaces/IRoleAdminService'; 
 import { IRoleRepository } from './application/interfaces/IRoleRepository'; // Added
 import { IUserAdminService } from './application/interfaces/IUserAdminService';
 import { IUserMgmtAdapter } from './application/interfaces/IUserMgmtAdapter';
+import { IPolicyService } from './application/interfaces/IPolicyService';
 
 
 // --- Import Implementations (Adapters/Services/Infrastructure) ---
@@ -39,8 +40,9 @@ import { DynamoRoleRepository } from './infrastructure/persistence/dynamodb/Dyna
 import { GroupAdminService } from './application/services/group.admin.service';
 import { PermissionAdminService } from './application/services/permission.admin.service'; // Added
 import { PolicyAdminService } from './application/services/policy.admin.service'; // <<< NEW
+import { PolicyService } from './application/services/PolicyService';
 import { RoleAdminService } from './application/services/role.admin.service'; // Added
-import { UserAdminService } from './application/services/user.admin.service';
+import { UserAdminService }s from './application/services/user.admin.service';
 
 
 // --- Register Infrastructure Services (Singletons recommended) ---
@@ -69,6 +71,7 @@ container.registerSingleton<IGroupAdminService>(TYPES.GroupAdminService, GroupAd
 container.registerSingleton<IPermissionAdminService>(TYPES.PermissionAdminService, PermissionAdminService );
 container.registerSingleton<IRoleAdminService>(TYPES.RoleAdminService, RoleAdminService );
 container.registerSingleton<IPolicyAdminService>(TYPES.PolicyAdminService, PolicyAdminService); // <<< NEW
+container.registerSingleton<IPolicyService>(TYPES.PolicyService, PolicyService);
 
 
 // --- Register Controllers (Usually Transient - handled automatically by tsyringe if decorated) ---
