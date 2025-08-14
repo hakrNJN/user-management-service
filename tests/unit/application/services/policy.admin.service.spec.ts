@@ -51,6 +51,7 @@ describe('PolicyAdminService', () => {
             createDetails.policyName,
             createDetails.policyDefinition,
             createDetails.policyLanguage,
+            1, // version
             createDetails.description
         );
 
@@ -115,7 +116,7 @@ describe('PolicyAdminService', () => {
     describe('getPolicy', () => {
         const policyId = 'get-policy-uuid';
         const policyName = 'policy.get.test';
-        const foundPolicy = new Policy(policyId, policyName, 'def', 'rego');
+        const foundPolicy = new Policy(policyId, policyName, 'def', 'rego', 1);
 
         it('should return policy if found by ID', async () => {
             policyRepository.findById.mockResolvedValue(foundPolicy);
@@ -158,7 +159,7 @@ describe('PolicyAdminService', () => {
 
     // --- listPolicies Tests ---
     describe('listPolicies', () => {
-        const policies = [new Policy('p1', 'n1', 'd', 'l'), new Policy('p2', 'n2', 'd', 'l')];
+        const policies = [new Policy('p1', 'n1', 'd', 'l', 1), new Policy('p2', 'n2', 'd', 'l', 1)];
         const queryResult = { items: policies, lastEvaluatedKey: { PK: { S: 'p2' } } };
 
         it('should call repository list and return results', async () => {
@@ -186,12 +187,12 @@ describe('PolicyAdminService', () => {
     describe('updatePolicy', () => {
         const policyId = 'update-policy-uuid';
         const policyName = 'policy.update.test';
-        const existingPolicy = new Policy(policyId, policyName, 'def', 'rego', 'Old Desc');
+        const existingPolicy = new Policy(policyId, policyName, 'def', 'rego', 1, 'Old Desc');
         const updateDetails = {
             description: 'New Description',
             policyDefinition: 'package updated\ndefault allow = true',
         };
-        const expectedUpdatedPolicy = new Policy(policyId, policyName, updateDetails.policyDefinition, 'rego', updateDetails.description);
+        const expectedUpdatedPolicy = new Policy(policyId, policyName, updateDetails.policyDefinition, 'rego', 2, updateDetails.description);
 
         // Mock getPolicy behavior for update tests
         const mockGetPolicy = jest.spyOn(service, 'getPolicy');
@@ -235,7 +236,7 @@ describe('PolicyAdminService', () => {
 
         it('should check for name conflict if policyName is updated', async () => {
             const nameUpdateDetails = { policyName: 'new.conflicting.name' };
-            const conflictingPolicy = new Policy('other-id', nameUpdateDetails.policyName, 'def', 'rego');
+            const conflictingPolicy = new Policy('other-id', nameUpdateDetails.policyName, 'def', 'rego', 1);
             mockGetPolicy.mockResolvedValue(existingPolicy); // Found original
             policyRepository.findByName.mockResolvedValue(conflictingPolicy); // Found conflict
 
@@ -281,7 +282,7 @@ describe('PolicyAdminService', () => {
     describe('deletePolicy', () => {
         const policyId = 'delete-policy-uuid';
         const policyName = 'policy.delete.test';
-        const existingPolicy = new Policy(policyId, policyName, 'def', 'rego');
+        const existingPolicy = new Policy(policyId, policyName, 'def', 'rego', 1);
 
         const mockGetPolicy = jest.spyOn(service, 'getPolicy');
 

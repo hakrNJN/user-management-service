@@ -49,6 +49,9 @@ export const mockPolicyRepository: jest.Mocked<IPolicyRepository> = {
     findByName: jest.fn(),
     list: jest.fn(),
     delete: jest.fn(),
+    getPolicyVersion: jest.fn(),
+    listPolicyVersions: jest.fn(),
+    getAllPolicies: jest.fn(),
 };
 
 export const mockPolicyEngineAdapter: jest.Mocked<IPolicyEngineAdapter> = {

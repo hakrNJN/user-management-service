@@ -46,6 +46,7 @@ const MOCK_POLICY_ENTITY = new Policy(
     testPolicyName,
     MOCK_VALID_CREATE_POLICY_PAYLOAD.policyDefinition,
     MOCK_VALID_CREATE_POLICY_PAYLOAD.policyLanguage,
+    1, // version
     MOCK_VALID_CREATE_POLICY_PAYLOAD.description
 );
 const MOCK_VALID_UPDATE_POLICY_PAYLOAD = {
@@ -162,7 +163,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
 
     describe(`GET ${BASE_API_PATH}/:policyId`, () => {
         const targetPolicyId = 'get-policy-integ-uuid';
-        const mockPolicyData = new Policy(targetPolicyId, 'get.policy', 'def', 'rego');
+        const mockPolicyData = new Policy(targetPolicyId, 'get.policy', 'def', 'rego', 1);
 
         it('should return 200 OK with policy data if policy exists', async () => {
             mockPolicyAdminServiceImpl.getPolicy.mockResolvedValueOnce(mockPolicyData);
@@ -266,7 +267,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
 
      describe(`PUT ${BASE_API_PATH}/:policyId`, () => {
         const targetPolicyId = 'update-policy-integ-uuid';
-        const updatedPolicy = new Policy(targetPolicyId, 'updated.name', 'updated def', 'rego', MOCK_VALID_UPDATE_POLICY_PAYLOAD.description);
+        const updatedPolicy = new Policy(targetPolicyId, 'updated.name', 'updated def', 'rego', 2, MOCK_VALID_UPDATE_POLICY_PAYLOAD.description);
 
         it('should return 200 OK with updated policy data if service succeeds', async () => {
             mockPolicyAdminServiceImpl.updatePolicy.mockResolvedValueOnce(updatedPolicy);

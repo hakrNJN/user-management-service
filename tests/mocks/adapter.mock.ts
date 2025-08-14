@@ -21,6 +21,7 @@ export const mockUserMgmtAdapter: jest.Mocked<IUserMgmtAdapter> = {
     adminDeleteGroup: jest.fn(),
     adminGetGroup: jest.fn(),
     adminListGroups: jest.fn(),
+    adminReactivateGroup: jest.fn(),
 };
 
 export const mockPolicyEngineAdapter: jest.Mocked<IPolicyEngineAdapter> = {

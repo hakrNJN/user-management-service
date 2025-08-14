@@ -39,8 +39,8 @@ describe('DynamoPolicyRepository Unit Tests', () => {
             name,
             `package test.${name}\ndefault allow = false`,
             'rego',
+            1, // version
             `Description for ${name}`,
-            'v1.0',
             { owner: 'tester', tag: 'unit-test' }
         );
     };
@@ -75,7 +75,7 @@ describe('DynamoPolicyRepository Unit Tests', () => {
 
         // Instantiate the *real* provider and repository with mocks
         const provider = new DynamoDBProvider(configService);
-        repository = new DynamoPolicyRepository(configService, logger, provider);
+        repository = new DynamoPolicyRepository(provider, logger);
     });
 
     // --- Test mapToPolicy (Private Helper) ---

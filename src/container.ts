@@ -11,11 +11,11 @@ import { IPermissionRepository } from './application/interfaces/IPermissionRepos
 import { IPolicyAdminService } from './application/interfaces/IPolicyAdminService'; // <<< NEW
 import { IPolicyEngineAdapter } from './application/interfaces/IPolicyEngineAdapter'; // <<< NEW
 import { IPolicyRepository } from './application/interfaces/IPolicyRepository'; // <<< NEW
+import { IPolicyService } from './application/interfaces/IPolicyService';
 import { IRoleAdminService } from './application/interfaces/IRoleAdminService'; // Added
 import { IRoleRepository } from './application/interfaces/IRoleRepository'; // Added
 import { IUserAdminService } from './application/interfaces/IUserAdminService';
 import { IUserMgmtAdapter } from './application/interfaces/IUserMgmtAdapter';
-import { IPolicyService } from './application/interfaces/IPolicyService';
 
 
 // --- Import Implementations (Adapters/Services/Infrastructure) ---
@@ -30,19 +30,19 @@ import { WinstonLogger } from './infrastructure/logging/WinstonLogger';
 
 // Infrastructure - Persistence
 import { DynamoAssignmentRepository } from './infrastructure/persistence/dynamodb/DynamoAssignmentRepository'; // Added
+import { DynamoPolicyRepository } from './infrastructure/persistence/dynamodb/DynamoPolicyRepository'; // Added
 import { DynamoDBProvider } from './infrastructure/persistence/dynamodb/dynamodb.client'; // Added
 import { DynamoPermissionRepository } from './infrastructure/persistence/dynamodb/DynamoPermissionRepository'; // Added
-import { DynamoPolicyRepository } from './infrastructure/persistence/dynamodb/DynamoPolicyRepository'; // <<< NEW
 import { DynamoRoleRepository } from './infrastructure/persistence/dynamodb/DynamoRoleRepository'; // Added
 // import { DynamoUserProfileRepository } from './infrastructure/persistence/dynamodb/DynamoUserProfileRepository'; // Assuming this exists if profile mgmt is added later
 
 // Application Services
 import { GroupAdminService } from './application/services/group.admin.service';
 import { PermissionAdminService } from './application/services/permission.admin.service'; // Added
-import { PolicyAdminService } from './application/services/policy.admin.service'; // <<< NEW
+import { PolicyAdminService } from './application/services/policy.admin.service';
 import { PolicyService } from './application/services/PolicyService';
 import { RoleAdminService } from './application/services/role.admin.service'; // Added
-import { UserAdminService }s from './application/services/user.admin.service';
+import { UserAdminService } from './application/services/user.admin.service';
 
 
 // --- Register Infrastructure Services (Singletons recommended) ---
@@ -68,8 +68,8 @@ container.registerSingleton<IPolicyRepository>(TYPES.PolicyRepository, DynamoPol
 // --- Register Application Services (Singletons often suitable) ---
 container.registerSingleton<IUserAdminService>(TYPES.UserAdminService, UserAdminService);
 container.registerSingleton<IGroupAdminService>(TYPES.GroupAdminService, GroupAdminService);
-container.registerSingleton<IPermissionAdminService>(TYPES.PermissionAdminService, PermissionAdminService );
-container.registerSingleton<IRoleAdminService>(TYPES.RoleAdminService, RoleAdminService );
+container.registerSingleton<IPermissionAdminService>(TYPES.PermissionAdminService, PermissionAdminService);
+container.registerSingleton<IRoleAdminService>(TYPES.RoleAdminService, RoleAdminService);
 container.registerSingleton<IPolicyAdminService>(TYPES.PolicyAdminService, PolicyAdminService); // <<< NEW
 container.registerSingleton<IPolicyService>(TYPES.PolicyService, PolicyService);
 

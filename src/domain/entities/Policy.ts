@@ -12,6 +12,7 @@ interface PolicyDynamoItem {
     metadata?: Record<string, any>;
     createdAt: string;
     updatedAt: string;
+    isActive: boolean;
 }
 
 
@@ -38,7 +39,8 @@ export class Policy {
         /** Timestamp of creation. */
         public createdAt: Date = new Date(),
         /** Timestamp of the last update. */
-        public updatedAt: Date = new Date()
+        public updatedAt: Date = new Date(),
+        public isActive: boolean = true
     ) {}
 
     /**
@@ -76,6 +78,7 @@ export class Policy {
         metadata?: Record<string, any>;
         createdAt?: string | Date;
         updatedAt?: string | Date;
+        isActive?: boolean;
     }): Policy {
         // Basic validation within the factory
         if (!data.id || !data.policyName || !data.policyDefinition || !data.policyLanguage) {
@@ -90,7 +93,8 @@ export class Policy {
             data.description,
             data.metadata,
             data.createdAt ? new Date(data.createdAt) : new Date(),
-            data.updatedAt ? new Date(data.updatedAt) : new Date()
+            data.updatedAt ? new Date(data.updatedAt) : new Date(),
+            data.isActive ?? true
         );
     }
 
@@ -109,6 +113,7 @@ export class Policy {
              metadata: this.metadata,
              createdAt: this.createdAt.toISOString(),
              updatedAt: this.updatedAt.toISOString(),
+             isActive: this.isActive,
          };
     }
 }

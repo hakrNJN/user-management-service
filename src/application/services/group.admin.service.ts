@@ -20,12 +20,19 @@ export class GroupAdminService implements IGroupAdminService {
     ) { }
 
     // Helper to check admin privileges (example)
-    private checkAdminPermission(adminUser: AdminUser, requiredRole = 'admin'): void {
-        if (!adminUser.roles?.includes(requiredRole)) {
-            this.logger.warn(`Admin permission check failed for group operation`, { adminUserId: adminUser.id, requiredRole });
-            throw new BaseError('ForbiddenError', 403, 'Admin privileges required for this operation.', true);
+    private checkAdminPermission(adminUser: AdminUser, requiredPermission: string): void {
+        // For beta, a simple check: if adminUser has 'admin' role, they have all permissions.
+        // In a production system, this would involve a more sophisticated permission mapping
+        // (e.g., roles -> permissions lookup, or direct permission assignment).
+        if (!adminUser.roles?.includes('admin')) {
+            this.logger.warn(`Admin permission check failed: User ${adminUser.username} does not have 'admin' role. Required permission: ${requiredPermission}`, { adminUserId: adminUser.id, requiredPermission });
+            throw new BaseError('ForbiddenError', 403, `Admin privileges required for this operation: ${requiredPermission}.`, true);
         }
-        this.logger.debug(`Admin permission check passed for group operation`, { adminUserId: adminUser.id, requiredRole });
+        this.logger.debug(`Admin permission check passed for ${requiredPermission}`, { adminUserId: adminUser.id, requiredPermission });
+    }
+
+    private logAuditEvent(adminUser: AdminUser, action: string, targetType: string, targetId: string, status: 'SUCCESS' | 'FAILURE', details?: any): void {
+        this.logger.info(`AUDIT: Admin ${adminUser.username} performed ${action} on ${targetType} ${targetId} - ${status}`, { adminUserId: adminUser.id, action, targetType, targetId, status, details });
     }
 
     /**
@@ -36,17 +43,14 @@ export class GroupAdminService implements IGroupAdminService {
      * @throws {GroupExistsError} If a group with the same name already exists.
      */
     async createGroup(adminUser: AdminUser, details: CreateGroupDetails): Promise<Group> {
-        this.checkAdminPermission(adminUser);
-        this.logger.info(`Admin attempting to create group`, { adminUserId: adminUser.id, groupName: details.groupName });
+        this.checkAdminPermission(adminUser, 'group:create');
         try {
             const cognitoGroup = await this.userMgmtAdapter.adminCreateGroup(details);
-            this.logger.info(`Admin successfully created group ${details.groupName}`, { adminUserId: adminUser.id });
+            this.logAuditEvent(adminUser, 'CREATE_GROUP', 'GROUP', details.groupName, 'SUCCESS', { groupDetails: details });
             return Group.fromCognitoGroup(cognitoGroup);
         } catch (error: any) {
-            this.logger.error(`Admin failed to create group ${details.groupName}`, { adminUserId: adminUser.id, error });
-            // Re-throw specific errors mapped by adapter or handle here
-            if (error instanceof GroupExistsError) throw error; // Already mapped
-            throw error; // Re-throw others
+            this.logAuditEvent(adminUser, 'CREATE_GROUP', 'GROUP', details.groupName, 'FAILURE', { error: error.message });
+            throw error;
         }
     }
 
@@ -58,7 +62,7 @@ export class GroupAdminService implements IGroupAdminService {
      * @throws {Error} If an unexpected error occurs during the operation.
      */
     async getGroup(adminUser: AdminUser, groupName: string): Promise<Group | null> {
-        this.checkAdminPermission(adminUser);
+        this.checkAdminPermission(adminUser, 'group:read');
         this.logger.info(`Admin attempting to get group`, { adminUserId: adminUser.id, groupName });
         try {
             const cognitoGroup = await this.userMgmtAdapter.adminGetGroup(groupName);
@@ -83,12 +87,18 @@ export class GroupAdminService implements IGroupAdminService {
      * @returns A promise that resolves to an object containing an array of Groups and an optional nextToken.
      * @throws {Error} If an unexpected error occurs during the operation.
      */
-    async listGroups(adminUser: AdminUser, limit?: number, nextToken?: string): Promise<{ groups: Group[], nextToken?: string }> {
-        this.checkAdminPermission(adminUser);
-        this.logger.info(`Admin attempting to list groups`, { adminUserId: adminUser.id, limit, nextToken });
+    async listGroups(adminUser: AdminUser, limit?: number, nextToken?: string, filter?: string, includeInactive: boolean = false): Promise<{ groups: Group[], nextToken?: string }> {
+        this.checkAdminPermission(adminUser, 'group:list');
+        this.logger.info(`Admin attempting to list groups`, { adminUserId: adminUser.id, limit, nextToken, filter, includeInactive });
         try {
-            const result = await this.userMgmtAdapter.adminListGroups(limit, nextToken);
-            const domainGroups = result.groups.map(g => Group.fromCognitoGroup(g));
+            const result = await this.userMgmtAdapter.adminListGroups(limit, nextToken, filter);
+            let domainGroups = result.groups.map(g => Group.fromCognitoGroup(g));
+
+            // Filter by status unless specified otherwise
+            if (!includeInactive) {
+                domainGroups = domainGroups.filter(g => g.status === 'ACTIVE');
+            }
+
             this.logger.info(`Admin successfully listed ${domainGroups.length} groups`, { adminUserId: adminUser.id });
             return { groups: domainGroups, nextToken: result.nextToken };
         } catch (error: any) {
@@ -105,38 +115,29 @@ export class GroupAdminService implements IGroupAdminService {
      * @throws {Error} If an unexpected error occurs during the operation.
      */
     async deleteGroup(adminUser: AdminUser, groupName: string): Promise<void> {
-        this.checkAdminPermission(adminUser);
-        this.logger.info(`Admin attempting to delete group ${groupName}`, { adminUserId: adminUser.id });
-
-        // 1. Delete Cognito Group first
+        this.checkAdminPermission(adminUser, 'group:delete');
         try {
             await this.userMgmtAdapter.adminDeleteGroup(groupName);
-            this.logger.info(`Admin successfully deleted Cognito group ${groupName}`, { adminUserId: adminUser.id });
+            this.logAuditEvent(adminUser, 'DEACTIVATE_GROUP', 'GROUP', groupName, 'SUCCESS');
         } catch (error: any) {
-            this.logger.error(`Admin failed to delete Cognito group ${groupName}`, { adminUserId: adminUser.id, error });
-            // If adapter maps ResourceNotFoundException to NotFoundError or GroupNotFoundError, handle it
-            if (error instanceof NotFoundError || error instanceof GroupNotFoundError || (error instanceof BaseError && error.statusCode === 404)) {
-                throw new GroupNotFoundError(groupName); // Ensure consistent error type
-            }
-            throw error; // Re-throw other adapter errors
+            this.logAuditEvent(adminUser, 'DEACTIVATE_GROUP', 'GROUP', groupName, 'FAILURE', { error: error.message });
+            throw error;
         }
+    }
 
-        // 2. If Cognito deletion successful, cleanup assignments
-        this.logger.info(`Cognito group ${groupName} deleted, attempting assignment cleanup...`, { adminUserId: adminUser.id });
+    async reactivateGroup(adminUser: AdminUser, groupName: string): Promise<void> {
+        this.checkAdminPermission(adminUser, 'group:update');
         try {
-            await this.assignmentRepository.removeAllAssignmentsForGroup(groupName);
-            this.logger.info(`Successfully cleaned up assignments for deleted group ${groupName}`, { adminUserId: adminUser.id });
-        } catch (cleanupError: any) {
-            this.logger.error(`Failed to cleanup assignments for deleted group ${groupName}. Manual cleanup might be needed.`, { adminUserId: adminUser.id, error: cleanupError });
-            // Re-throw cleanup error to indicate incomplete operation
-            throw new BaseError('CleanupFailedError', 500, `Cognito Group ${groupName} was deleted, but failed to remove associated role assignments: ${cleanupError.message}`, false);
+            await this.userMgmtAdapter.adminReactivateGroup(groupName);
+            this.logAuditEvent(adminUser, 'REACTIVATE_GROUP', 'GROUP', groupName, 'SUCCESS');
+        } catch (error: any) {
+            this.logAuditEvent(adminUser, 'REACTIVATE_GROUP', 'GROUP', groupName, 'FAILURE', { error: error.message });
+            throw error;
         }
-
-        this.logger.info(`Admin successfully deleted group '${groupName}' and cleaned up assignments`, { adminUserId: adminUser.id });
     }
 
     async assignRoleToGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void> {
-        this.checkAdminPermission(adminUser);
+        this.checkAdminPermission(adminUser, 'group:role:assign');
         this.logger.info(`Admin attempting to assign role '${roleName}' to group '${groupName}'`, { adminUserId: adminUser.id });
 
         // Validate Cognito Group exists
@@ -163,26 +164,18 @@ export class GroupAdminService implements IGroupAdminService {
     }
 
     async removeRoleFromGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void> {
-        this.checkAdminPermission(adminUser);
-        this.logger.info(`Admin attempting to remove role '${roleName}' from group '${groupName}'`, { adminUserId: adminUser.id });
-
-        // Optional: Validate group/role existence before removal? Often not needed for delete.
-        // const group = await this.getGroup(adminUser, groupName);
-        // if (!group) throw new GroupNotFoundError(groupName);
-        // const role = await this.roleRepository.findByName(roleName);
-        // if (!role) throw new RoleNotFoundError(roleName);
-
+        this.checkAdminPermission(adminUser, 'group:role:remove');
         try {
             await this.assignmentRepository.removeRoleFromGroup(groupName, roleName);
-            this.logger.info(`Admin successfully removed role '${roleName}' from group '${groupName}'`, { adminUserId: adminUser.id });
+            this.logAuditEvent(adminUser, 'REMOVE_ROLE_FROM_GROUP', 'GROUP', groupName, 'SUCCESS', { role: roleName });
         } catch (error: any) {
-            this.logger.error(`Admin failed to remove role '${roleName}' from group '${groupName}'`, { adminUserId: adminUser.id, error });
+            this.logAuditEvent(adminUser, 'REMOVE_ROLE_FROM_GROUP', 'GROUP', groupName, 'FAILURE', { role: roleName, error: error.message });
             throw new AssignmentError(`Failed to remove role '${roleName}' from group '${groupName}': ${error.message}`);
         }
     }
 
     async listRolesForGroup(adminUser: AdminUser, groupName: string): Promise<string[]> {
-        this.checkAdminPermission(adminUser);
+        this.checkAdminPermission(adminUser, 'group:role:list');
         this.logger.info(`Admin attempting to list roles for group '${groupName}'`, { adminUserId: adminUser.id });
 
         // Validate Cognito Group exists

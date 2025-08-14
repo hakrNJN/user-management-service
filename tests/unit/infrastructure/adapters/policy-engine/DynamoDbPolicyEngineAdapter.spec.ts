@@ -16,7 +16,7 @@ describe('DynamoDbPolicyEngineAdapter', () => {
     const testPolicyName = 'policy.adapter.test';
     const testPolicyDefinition = 'package test\ndefault allow = false';
     const testPolicyLanguage = 'rego';
-    const testPolicy = new Policy(testPolicyId, testPolicyName, testPolicyDefinition, testPolicyLanguage);
+    const testPolicy = new Policy(testPolicyId, testPolicyName, testPolicyDefinition, testPolicyLanguage, 1);
 
     beforeEach(() => {
         jest.clearAllMocks();

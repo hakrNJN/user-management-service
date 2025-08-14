@@ -66,7 +66,8 @@ export class GroupAdminController {
             const limitNum = limit ? parseInt(limit as string, 10) : undefined;
             // TODO: Add validation for limit if needed
 
-            const result = await this.groupAdminService.listGroups(adminUser, limitNum, nextToken as string);
+            const nextTokenStr = typeof nextToken === 'string' ? nextToken : undefined;
+            const result = await this.groupAdminService.listGroups(adminUser, limitNum, nextTokenStr);
             res.status(HttpStatusCode.OK).json(result);
         } catch (error) {
             this.logger.error(`[GroupAdminCtrl] Failed to list groups`, { adminUserId: adminUser.id, error });
@@ -83,6 +84,19 @@ export class GroupAdminController {
             res.status(HttpStatusCode.NO_CONTENT).send();
         } catch (error) {
             this.logger.error(`[GroupAdminCtrl] Failed to delete group ${groupNameFromParams}`, { adminUserId: adminUser.id, error });
+            next(error);
+        }
+    };
+
+    reactivateGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const adminUser = this.getAdminUser(req);
+        const groupNameFromParams = req.params?.groupName;
+        try {
+            const { groupName } = req.params as GroupNameParamsDto;
+            await this.groupAdminService.reactivateGroup(adminUser, groupName);
+            res.status(HttpStatusCode.OK).json({ message: `Group ${groupName} reactivated successfully.` });
+        } catch (error) {
+            this.logger.error(`[GroupAdminCtrl] Failed to reactivate group ${groupNameFromParams}`, { adminUserId: adminUser.id, error });
             next(error);
         }
     };

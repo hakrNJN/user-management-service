@@ -19,6 +19,7 @@ const mockGroupAdminService: jest.Mocked<IGroupAdminService> = {
     getGroup: jest.fn(),
     listGroups: jest.fn(),
     deleteGroup: jest.fn(),
+    reactivateGroup: jest.fn(),
     assignRoleToGroup: jest.fn(), // Added
     removeRoleFromGroup: jest.fn(), // Added
     listRolesForGroup: jest.fn(), // Added
@@ -69,7 +70,7 @@ describe('GroupAdminController', () => {
     // --- POST /admin/groups ---
     describe('createGroup', () => {
         const groupDetails = { groupName: 'test-group', description: 'Test group' };
-        const createdGroup = new Group('test-group', 'Test group', undefined, new Date(), new Date());
+        const createdGroup = new Group('test-group', 'Test group', 'ACTIVE', undefined, new Date(), new Date());
 
         it('should call service createGroup and return 201 with group data', async () => {
             mockRequest.body = groupDetails;
@@ -120,7 +121,7 @@ describe('GroupAdminController', () => {
     // --- GET /admin/groups/:groupName ---
     describe('getGroup', () => {
         const groupName = 'get-this-group';
-        const foundGroup = new Group(groupName, 'Desc', undefined, new Date(), new Date());
+        const foundGroup = new Group(groupName, 'Desc', 'ACTIVE', undefined, new Date(), new Date());
 
         it('should call service getGroup and return 200 with group data if found', async () => {
             mockRequest.params = { groupName };
@@ -165,8 +166,8 @@ describe('GroupAdminController', () => {
         const now = new Date(); // Helper date
         const mockGroups = [
             // Provide all 5 arguments for each Group instance
-            new Group('g1', 'Group One Description', 10, now, now),
-            new Group('g2', undefined, undefined, now, now) // Use undefined for optional args
+            new Group('g1', 'Group One Description', 'ACTIVE', 10, now, now),
+            new Group('g2', '', 'ACTIVE', undefined, now, now) // Use undefined for optional args
         ];
         const mockResult = { groups: mockGroups, nextToken: 'tok1' };
 

@@ -11,6 +11,7 @@ import {
     AdminResetUserPasswordCommand,
     AdminSetUserPasswordCommand,
     AdminUpdateUserAttributesCommand,
+    UpdateGroupCommand,
     // Types
     AttributeType,
     CognitoIdentityProviderClient,
@@ -294,14 +295,26 @@ export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
             UserPoolId: this.userPoolId,
             Limit: options.limit,
             PaginationToken: options.paginationToken,
-            Filter: options.filter,
-            // AttributesToGet: [...] // Optionally specify attributes to reduce payload size
+            Filter: options.filter, // Pass the filter string directly
         });
         try {
             const resilientOp = applyCircuitBreaker(() => this.cognitoClient.send(command), this.circuitBreakerKey, this.logger);
             const response = await resilientOp();
             this.logger.debug(`Admin successfully listed users`);
-            return { users: response.Users || [], paginationToken: response.PaginationToken };
+
+            let users = response.Users || [];
+            let paginationToken = response.PaginationToken;
+
+            // Apply status filter if provided (Cognito ListUsersCommand doesn't directly filter by UserStatus)
+            if (options.status) {
+                users = users.filter(user => user.UserStatus === options.status);
+                // Note: If filtering client-side, paginationToken might become inaccurate
+                // if the filtered results don't fill the 'limit'. For true server-side
+                // pagination with status filter, a custom Lambda or more complex logic is needed.
+                // For beta, this client-side filtering is acceptable.
+            }
+
+            return { users: users, paginationToken: paginationToken };
         } catch (error: any) {
             throw this.handleCognitoAdminError(error, operationName);
         }
@@ -324,13 +337,19 @@ export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
 
     async adminCreateGroup(details: CreateGroupDetails): Promise<GroupType> {
         const operationName = 'adminCreateGroup';
+        // Embed description and status in a JSON object for Cognito's Description field
+        const descriptionJson = JSON.stringify({
+            description: details.description || '',
+            status: 'ACTIVE'
+        });
+
         const command = new CreateGroupCommand({
             UserPoolId: this.userPoolId,
             GroupName: details.groupName,
-            Description: details.description,
+            Description: descriptionJson,
             Precedence: details.precedence,
-            // RoleArn: details.roleArn,
         });
+
         try {
             const resilientOp = applyCircuitBreaker(() => this.cognitoClient.send(command), this.circuitBreakerKey, this.logger);
             const response = await resilientOp();
@@ -343,12 +362,63 @@ export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
     }
 
     async adminDeleteGroup(groupName: string): Promise<void> {
-        const operationName = 'adminDeleteGroup';
-        const command = new DeleteGroupCommand({ UserPoolId: this.userPoolId, GroupName: groupName });
+        const operationName = 'adminDeleteGroup (deactivate)';
+        this.logger.info(`Request to deactivate group: ${groupName}.`);
+        try {
+            await this.adminUpdateGroupStatus(groupName, 'INACTIVE');
+            this.logger.info(`Admin successfully deactivated group: ${groupName}`);
+        } catch (error: any) {
+            this.logger.error(`Failed to deactivate group ${groupName}.`, { errorName: error?.name });
+            // The error is already handled by adminUpdateGroupStatus, so just re-throw
+            throw error;
+        }
+    }
+
+    async adminReactivateGroup(groupName: string): Promise<void> {
+        const operationName = 'adminReactivateGroup';
+        this.logger.info(`Request to reactivate group: ${groupName}.`);
+        try {
+            await this.adminUpdateGroupStatus(groupName, 'ACTIVE');
+            this.logger.info(`Admin successfully reactivated group: ${groupName}`);
+        } catch (error: any) {
+            this.logger.error(`Failed to reactivate group ${groupName}.`, { errorName: error?.name });
+            throw error;
+        }
+    }
+
+    private async adminUpdateGroupStatus(groupName: string, status: 'ACTIVE' | 'INACTIVE'): Promise<void> {
+        const operationName = 'adminUpdateGroupStatus';
+        // First, get the existing group to preserve its description
+        const existingGroup = await this.adminGetGroup(groupName);
+        if (!existingGroup) {
+            throw new NotFoundError(`Cannot update status for non-existent group: ${groupName}`);
+        }
+
+        let description = '';
+        // Safely parse the current description
+        if (existingGroup.Description?.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(existingGroup.Description);
+                description = parsed.description || '';
+            } catch (e) {
+                description = existingGroup.Description; // Fallback for malformed JSON
+            }
+        } else {
+            description = existingGroup.Description || ''; // Fallback for non-JSON description
+        }
+
+        const newDescriptionJson = JSON.stringify({ description, status });
+
+        const command = new UpdateGroupCommand({
+            UserPoolId: this.userPoolId,
+            GroupName: groupName,
+            Description: newDescriptionJson,
+            Precedence: existingGroup.Precedence,
+        });
+
         try {
             const resilientOp = applyCircuitBreaker(() => this.cognitoClient.send(command), this.circuitBreakerKey, this.logger);
             await resilientOp();
-            this.logger.info(`Admin successfully deleted group: ${groupName}`);
         } catch (error: any) {
             throw this.handleCognitoAdminError(error, operationName);
         }
@@ -377,14 +447,33 @@ export class CognitoUserMgmtAdapter implements IUserMgmtAdapter {
         }
     }
 
-    async adminListGroups(limit?: number, nextToken?: string): Promise<{ groups: GroupType[], nextToken?: string }> {
+    async adminListGroups(limit?: number, nextToken?: string, filter?: string): Promise<{ groups: GroupType[], nextToken?: string }> {
         const operationName = 'adminListGroups';
-        const command = new ListGroupsCommand({ UserPoolId: this.userPoolId, Limit: limit, NextToken: nextToken });
+        const command = new ListGroupsCommand({
+            UserPoolId: this.userPoolId,
+            Limit: limit,
+            NextToken: nextToken,
+        });
         try {
             const resilientOp = applyCircuitBreaker(() => this.cognitoClient.send(command), this.circuitBreakerKey, this.logger);
             const response = await resilientOp();
             this.logger.debug(`Admin successfully listed groups`);
-            return { groups: response.Groups || [], nextToken: response.NextToken };
+
+            let groups = response.Groups || [];
+            let paginationToken = response.NextToken;
+
+            // Apply client-side filtering if a generic filter string is provided
+            if (filter) {
+                const lowerCaseFilter = filter.toLowerCase();
+                groups = groups.filter(group =>
+                    (group.GroupName && group.GroupName.toLowerCase().includes(lowerCaseFilter)) ||
+                    (group.Description && group.Description.toLowerCase().includes(lowerCaseFilter))
+                );
+                // Note: Client-side filtering might affect pagination accuracy if 'limit' is used.
+                // For beta, this is acceptable.
+            }
+
+            return { groups: groups, nextToken: paginationToken };
         } catch (error: any) {
             throw this.handleCognitoAdminError(error, operationName);
         }

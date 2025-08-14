@@ -73,7 +73,7 @@ describe('PolicyAdminController', () => {
             policyLanguage: 'rego',
             description: 'Test policy create',
         };
-        const createdPolicy = new Policy('policy-uuid-1', createDto.policyName, createDto.policyDefinition, createDto.policyLanguage, createDto.description);
+        const createdPolicy = new Policy('policy-uuid-1', createDto.policyName, createDto.policyDefinition, createDto.policyLanguage, 1, createDto.description);
 
         it('should call service.createPolicy and return 201 with the created policy', async () => {
             mockRequest.body = createDto;
@@ -124,7 +124,7 @@ describe('PolicyAdminController', () => {
     // --- Test getPolicy ---
     describe('getPolicy', () => {
         const policyId = 'policy-uuid-get';
-        const foundPolicy = new Policy(policyId, 'policy.test.get', 'def', 'rego');
+        const foundPolicy = new Policy(policyId, 'policy.test.get', 'def', 'rego', 1);
 
         it('should call service.getPolicy and return 200 with the policy if found', async () => {
             mockRequest.params = { policyId } as PolicyIdParamsDto;
@@ -167,7 +167,7 @@ describe('PolicyAdminController', () => {
 
     // --- Test listPolicies ---
     describe('listPolicies', () => {
-        const policies = [new Policy('p1-id', 'p1', 'def', 'rego'), new Policy('p2-id', 'p2', 'def', 'rego')];
+        const policies = [new Policy('p1-id', 'p1', 'def', 'rego', 1), new Policy('p2-id', 'p2', 'def', 'rego', 1)];
         const queryResult = { items: policies, lastEvaluatedKey: { PK: { S: 'p2-id' } } }; // Example key
 
         it('should call service.listPolicies and return 200 with results', async () => {
@@ -214,7 +214,7 @@ describe('PolicyAdminController', () => {
             description: 'Updated policy description',
             policyDefinition: 'package updated\nallow { input.user.email == "test@example.com" }',
         };
-        const updatedPolicy = new Policy(policyId, 'policy.test.update', updateDto.policyDefinition!, 'rego', updateDto.description); // Assume name/lang not changed
+        const updatedPolicy = new Policy(policyId, 'policy.test.update', updateDto.policyDefinition!, 'rego', 1, updateDto.description); // Assume name/lang not changed
 
         it('should call service.updatePolicy and return 200 with the updated policy', async () => {
             mockRequest.params = { policyId } as UpdatePolicyAdminParams;

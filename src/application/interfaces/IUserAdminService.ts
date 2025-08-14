@@ -127,6 +127,16 @@ export interface IUserAdminService {
      * @returns A promise resolving to the list of user view models and next token.
      */
      listUsersInGroup(adminUser: AdminUser, groupName: string, limit?: number, nextToken?: string): Promise<{ users: AdminUserView[], nextToken?: string }>;
+
+    /**
+     * Updates a user's group memberships, adding them to new groups and removing them from old ones.
+     * @param adminUser - The authenticated admin performing the action.
+     * @param username - The username of the user.
+     * @param groupNames - An array of group names the user should belong to.
+     * @returns A promise resolving upon successful update.
+     * @throws {NotFoundError | BaseError} For failures.
+     */
+    updateUserGroups(adminUser: AdminUser, username: string, groupNames: string[]): Promise<void>;
 }
 
 // Define AdminUser type based on the shared interface

@@ -138,4 +138,43 @@ export class PolicyAdminController {
              next(error); // Pass all errors (incl. PolicyNotFoundError) to middleware
         }
     };
+
+    getPolicyVersion = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const adminUser = this.getAdminUser(req);
+        const { policyId, version } = req.params;
+        try {
+            const policy = await this.policyAdminService.getPolicyVersion(adminUser, policyId, parseInt(version, 10));
+            if (!policy) {
+                throw new PolicyNotFoundError(policyId);
+            }
+            res.status(HttpStatusCode.OK).json(policy);
+        } catch (error) {
+            this.logger.error(`[PolicyAdminCtrl] Failed to get policy version ${policyId}@${version}`, { adminUserId: adminUser.id, error });
+            next(error);
+        }
+    };
+
+    listPolicyVersions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const adminUser = this.getAdminUser(req);
+        const { policyId } = req.params;
+        try {
+            const versions = await this.policyAdminService.listPolicyVersions(adminUser, policyId);
+            res.status(HttpStatusCode.OK).json(versions);
+        } catch (error) {
+            this.logger.error(`[PolicyAdminCtrl] Failed to list policy versions for ${policyId}`, { adminUserId: adminUser.id, error });
+            next(error);
+        }
+    };
+
+    rollbackPolicy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const adminUser = this.getAdminUser(req);
+        const { policyId, version } = req.params;
+        try {
+            const policy = await this.policyAdminService.rollbackPolicy(adminUser, policyId, parseInt(version, 10));
+            res.status(HttpStatusCode.OK).json(policy);
+        } catch (error) {
+            this.logger.error(`[PolicyAdminCtrl] Failed to rollback policy ${policyId} to version ${version}`, { adminUserId: adminUser.id, error });
+            next(error);
+        }
+    };
 }

@@ -41,6 +41,7 @@ declare global {
              * Holds the unique request ID, attached by the requestId middleware.
              */
             id?: string;
+            accessToken?: string;
         }
     }
 }

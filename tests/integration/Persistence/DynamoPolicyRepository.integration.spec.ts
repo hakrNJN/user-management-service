@@ -53,7 +53,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
 
     describe('save (create)', () => {
         it('should create a new policy successfully', async () => {
-            const policy = new Policy('uuid-create-1', 'policy.create.1', 'def', 'rego', 'Desc 1');
+            const policy = new Policy('uuid-create-1', 'policy.create.1', 'def', 'rego', 1, 'Desc 1');
             await expect(createAndTrackPolicy(policy)).resolves.toEqual(policy);
 
             // Verify by fetching directly (optional but good for integration)
@@ -67,7 +67,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
         // Uniqueness based on ID is implicit. Uniqueness on policyName relies on the GSI approach or service layer checks.
         // Therefore, a test for PolicyExistsError on create might not apply directly to `save` unless implemented differently.
         it('should overwrite an existing policy with the same ID', async () => {
-            const policy = new Policy('uuid-overwrite-1', 'policy.overwrite.1', 'def1', 'rego');
+            const policy = new Policy('uuid-overwrite-1', 'policy.overwrite.1', 'def1', 'rego', 1);
             await createAndTrackPolicy(policy); // Create first
 
             const updatedPolicyData = { ...policy, description: 'Updated Description', policyDefinition: 'def2' };
@@ -76,6 +76,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
                 updatedPolicyData.policyName,
                 updatedPolicyData.policyDefinition,
                 updatedPolicyData.policyLanguage,
+                updatedPolicyData.version + 1, // Increment version for update
                 updatedPolicyData.description
              );
 
@@ -90,7 +91,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
 
     describe('findById', () => {
         it('should find an existing policy by ID', async () => {
-            const policy = new Policy('uuid-find-id-1', 'policy.find.id.1', 'def', 'rego');
+            const policy = new Policy('uuid-find-id-1', 'policy.find.id.1', 'def', 'rego', 1);
             await createAndTrackPolicy(policy);
 
             const found = await policyRepository.findById(policy.id);
@@ -109,7 +110,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
     //       if/when findByName is implemented using a GSI and Query.
     describe('findByName (using Scan)', () => {
         it('should find an existing policy by name using Scan', async () => {
-            const policy = new Policy('uuid-find-name-1', 'policy.find.name.scan.1', 'def', 'rego');
+            const policy = new Policy('uuid-find-name-1', 'policy.find.name.scan.1', 'def', 'rego', 1);
             await createAndTrackPolicy(policy);
 
             const found = await policyRepository.findByName(policy.policyName);
@@ -126,8 +127,8 @@ describe('DynamoPolicyRepository Integration Tests', () => {
         // This test might be flaky depending on scan consistency
         it('should return only one policy if multiple have the same name (Scan behavior)', async () => {
             const name = 'policy.find.name.scan.duplicate';
-            const policy1 = new Policy('uuid-find-name-dup1', name, 'def1', 'rego');
-            const policy2 = new Policy('uuid-find-name-dup2', name, 'def2', 'rego');
+            const policy1 = new Policy('uuid-find-name-dup1', name, 'def1', 'rego', 1);
+            const policy2 = new Policy('uuid-find-name-dup2', name, 'def2', 'rego', 1);
             await createAndTrackPolicy(policy1);
             await createAndTrackPolicy(policy2);
 
@@ -142,9 +143,9 @@ describe('DynamoPolicyRepository Integration Tests', () => {
     //       if/when list is implemented using a GSI and Query.
     describe('list (using Scan)', () => {
         it('should list created policies', async () => {
-            const policy1 = new Policy('uuid-list-1', 'policy.list.scan.1', 'def', 'rego');
-            const policy2 = new Policy('uuid-list-2', 'policy.list.scan.2', 'def', 'cedar');
-            const policy3 = new Policy('uuid-list-3', 'policy.list.scan.3', 'def', 'rego');
+            const policy1 = new Policy('uuid-list-1', 'policy.list.scan.1', 'def', 'rego', 1);
+            const policy2 = new Policy('uuid-list-2', 'policy.list.scan.2', 'def', 'cedar', 1);
+            const policy3 = new Policy('uuid-list-3', 'policy.list.scan.3', 'def', 'rego', 1);
             await createAndTrackPolicy(policy1);
             await createAndTrackPolicy(policy2);
             await createAndTrackPolicy(policy3);
@@ -157,8 +158,8 @@ describe('DynamoPolicyRepository Integration Tests', () => {
         });
 
         it('should list policies filtered by language', async () => {
-            const policy1 = new Policy('uuid-list-lang-1', 'policy.list.lang.1', 'def', 'rego');
-            const policy2 = new Policy('uuid-list-lang-2', 'policy.list.lang.2', 'def', 'cedar');
+            const policy1 = new Policy('uuid-list-lang-1', 'policy.list.lang.1', 'def', 'rego', 1);
+            const policy2 = new Policy('uuid-list-lang-2', 'policy.list.lang.2', 'def', 'cedar', 1);
             await createAndTrackPolicy(policy1);
             await createAndTrackPolicy(policy2);
 
@@ -169,8 +170,8 @@ describe('DynamoPolicyRepository Integration Tests', () => {
         });
 
         it('should handle pagination with Scan (limit and startKey)', async () => {
-             const policy1 = new Policy('uuid-list-page-1', 'policy.list.page.1', 'def', 'rego');
-             const policy2 = new Policy('uuid-list-page-2', 'policy.list.page.2', 'def', 'rego');
+             const policy1 = new Policy('uuid-list-page-1', 'policy.list.page.1', 'def', 'rego', 1);
+             const policy2 = new Policy('uuid-list-page-2', 'policy.list.page.2', 'def', 'rego', 1);
              await createAndTrackPolicy(policy1);
              await createAndTrackPolicy(policy2);
 
@@ -190,7 +191,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
 
     describe('delete', () => {
         it('should delete an existing policy and return true', async () => {
-            const policy = new Policy('uuid-delete-1', 'policy.delete.1', 'def', 'rego');
+            const policy = new Policy('uuid-delete-1', 'policy.delete.1', 'def', 'rego', 1);
             await createAndTrackPolicy(policy);
 
             const deleted = await policyRepository.delete(policy.id);

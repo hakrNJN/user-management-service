@@ -8,6 +8,8 @@ import { jwtAuthMiddleware } from '../middlewares/jwtAuth.middleware';
 import { validationMiddleware } from '../middlewares/validation.middleware';
 // Import DTO Schemas
 import { CreateGroupAdminSchema, GroupNameParamsSchema } from '../dtos/create-group.admin.dto';
+// Import DTO Schemas
+import { ListGroupsQueryAdminSchema } from '../dtos/list-groups-query.admin.dto';
 // Import assignment schemas from the shared DTO file
 import { GroupRoleAssignSchema, GroupRoleUnassignSchema } from '../dtos/role-permission.admin.dto';
 
@@ -26,9 +28,10 @@ router.use(adminGuard); // Then apply admin guard
 // --- Group Management Routes (Cognito Groups) ---
 
 router.post( '/', validationMiddleware(CreateGroupAdminSchema, logger), groupAdminController.createGroup );
-router.get( '/', groupAdminController.listGroups ); // Add pagination query validation if needed
+router.get( '/', validationMiddleware(ListGroupsQueryAdminSchema, logger), groupAdminController.listGroups );
 router.get( '/:groupName', validationMiddleware(GroupNameParamsSchema, logger), groupAdminController.getGroup );
 router.delete( '/:groupName', validationMiddleware(GroupNameParamsSchema, logger), groupAdminController.deleteGroup );
+router.put( '/:groupName/reactivate', validationMiddleware(GroupNameParamsSchema, logger), groupAdminController.reactivateGroup );
 
 // --- Group <-> Role Assignment Routes (DynamoDB Assignments) ---
 

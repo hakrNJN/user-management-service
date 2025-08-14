@@ -43,6 +43,8 @@ export interface IGroupAdminService {
      */
     deleteGroup(adminUser: AdminUser, groupName: string): Promise<void>;
 
+    reactivateGroup(adminUser: AdminUser, groupName: string): Promise<void>;
+
     // Add updateGroup if needed (Cognito's UpdateGroup is limited)
     // updateGroup(adminUser: AdminUser, groupName: string, updates: UpdateGroupDetails): Promise<Group>;
     assignRoleToGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void>;

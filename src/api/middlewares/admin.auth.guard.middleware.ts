@@ -38,17 +38,17 @@ export const createAdminAuthGuardMiddleware = (
             const decodedPayload = req.user; // req.user should be the decoded JWT payload
 
             // --- Authorization Check ---
-            const userGroups: string[] = (decodedPayload['cognito:groups'] as string[]) || [];
+            const userGroups: string[] = (decodedPayload as any)['cognito:groups'] || [];
 
             if (!userGroups.includes(requiredAdminRole)) {
-                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User lacks required role '${requiredAdminRole}'.`, { userGroups, userId: decodedPayload.sub });
+                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User lacks required role '${requiredAdminRole}'.`, { userGroups, userId: (decodedPayload as any).sub });
                 throw new BaseError('ForbiddenError', 403, `Access denied. Required role '${requiredAdminRole}' missing.`, true);
             }
 
             // --- Attach Admin User Context ---
             req.adminUser = {
-                id: decodedPayload.sub ?? 'unknown-sub',
-                username: (decodedPayload['cognito:username'] as string) ?? decodedPayload.email ?? 'unknown-username',
+                id: (decodedPayload as any).sub ?? 'unknown-sub',
+                username: (decodedPayload as any)['cognito:username'] ?? (decodedPayload as any).email ?? 'unknown-username',
                 roles: userGroups,
                 attributes: decodedPayload,
             } as AdminUser; // Cast to AdminUser
@@ -56,7 +56,7 @@ export const createAdminAuthGuardMiddleware = (
             logger.info(`[AdminGuard - ${requestId}] Admin authentication successful for user: ${req.adminUser.username} (ID: ${req.adminUser.id})`);
             next();
 
-        } catch (error) {
+        } catch (error: any) {
             logger.error(`[AdminGuard - ${requestId}] Error during admin authorization: ${error.message}`, error);
             next(error);
         }

@@ -5,6 +5,8 @@
  */
 export type MFAType = 'SMS' | 'TOTP' | 'None';
 
+export type UserStatus = 'ENABLED' | 'DISABLED' | 'UNCONFIRMED' | 'ARCHIVED' | 'COMPROMISED' | 'UNKNOWN';
+
 /**
  * Represents a user's profile information.
  */

@@ -8,4 +8,5 @@ export * from './error.middleware';
 export * from './requestId.middleware'; // Optional request ID
 export * from './requestLogger.middleware'; // Optional request logger
 export * from './validation.middleware';
+export * from './jwtAuth.middleware'; // Export jwtAuthMiddleware
 

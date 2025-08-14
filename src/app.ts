@@ -11,11 +11,13 @@ import { TYPES } from './shared/constants/types';
 import { RequestContextUtil } from './shared/utils/requestContext'; // Import context utility
 
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+
+import { requestMetricsMiddleware } from './api/middlewares/requestMetrics.middleware';
 
 export function createApp(): Express {
   // Initialize OpenTelemetry tracing here
@@ -29,7 +31,7 @@ export function createApp(): Express {
   const spanProcessor = new BatchSpanProcessor(traceExporter);
 
   const sdk = new NodeSDK({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
     }),
     spanProcessor: spanProcessor,
@@ -56,6 +58,9 @@ export function createApp(): Express {
   }
   app.use(cors({ origin: corsOrigin, exposedHeaders: ['X-Request-ID'] })); // Expose X-Request-ID if needed by frontend
   logger.info(`CORS configured for origin: ${corsOrigin}`);
+
+  // Apply metrics middleware
+  app.use(requestMetricsMiddleware);
 
   // 3. Body Parsers
   app.use(express.json({ limit: '1mb' })); // Add reasonable limits

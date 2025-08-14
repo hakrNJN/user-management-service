@@ -58,21 +58,15 @@ router.put(
     userAdminController.updateUserAttributes
 );
 
-// DELETE /admin/users/:username - Delete User
+// DELETE /admin/users/:username - Deactivate User
 router.delete(
     '/:username',
-    userAdminController.deleteUser
-);
-
-// POST /admin/users/:username/disable - Disable User
-router.post(
-    '/:username/disable',
     userAdminController.disableUser
 );
 
-// POST /admin/users/:username/enable - Enable User
-router.post(
-    '/:username/enable',
+// PUT /admin/users/:username/reactivate - Reactivate User
+router.put(
+    '/:username/reactivate',
     userAdminController.enableUser
 );
 

@@ -12,7 +12,7 @@ export const ListUsersQueryAdminSchema = z.object({
             }),
         paginationToken: z.string().optional(), // Token for next page
         filter: z.string().optional(), // Cognito filter string
-        // Add other query params like 'status', 'group', etc. if needed
+        status: z.string().optional(), // Add other query params like 'status', 'group', etc. if needed
     }),
 });
 

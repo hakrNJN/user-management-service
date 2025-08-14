@@ -29,7 +29,7 @@ export class PolicyService implements IPolicyService {
         const archive = archiver('tar', { gzip: true });
         const output = new PassThrough();
 
-        archive.on('error', (err) => {
+        archive.on('error', (err: any) => {
             this.logger.error('Archive error', { error: err.message });
             output.emit('error', err);
         });
@@ -38,7 +38,7 @@ export class PolicyService implements IPolicyService {
 
         for (const policy of policies) {
             // Assuming policy.regoContent contains the Rego policy string
-            archive.append(policy.regoContent, { name: `${policy.id}.rego` });
+            archive.append(policy.policyDefinition, { name: `${policy.id}.rego` });
         }
 
         await archive.finalize();

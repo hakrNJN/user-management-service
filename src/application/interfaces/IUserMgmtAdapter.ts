@@ -38,6 +38,7 @@ export interface ListUsersOptions {
     limit?: number;
     paginationToken?: string; // Token for next page
     filter?: string; // Filter expression (e.g., 'username ^= "john"')
+    status?: string; // New: Filter by user status (e.g., CONFIRMED, UNCONFIRMED)
 }
 
 /**
@@ -197,7 +198,9 @@ export interface IUserMgmtAdapter {
      * @returns A promise resolving to the list of groups and a potential next token.
      * @throws {BaseError} For failures.
      */
-    adminListGroups(limit?: number, nextToken?: string): Promise<{ groups: GroupType[], nextToken?: string }>;
+    adminListGroups(limit?: number, nextToken?: string, filter?: string): Promise<{ groups: GroupType[], nextToken?: string }>;
+
+    adminReactivateGroup(groupName: string): Promise<void>;
 
     // Add other admin-level methods as needed
 }

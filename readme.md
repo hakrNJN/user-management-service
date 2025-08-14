@@ -1,214 +1,219 @@
-# User Management Microservice (Admin)
+# User Management Service
 
-## Overview
+This service is a core component of the PBAC system, responsible for managing users, roles, groups, permissions, and policies. It also provides policy bundles for Open Policy Agent (OPA).
 
-This microservice provides administrative functionalities for managing users, identity provider (IdP) groups, application-defined roles, permissions, and authorization policies. It acts as a central hub for defining the assets used by a separate runtime Authorization Service to make access control decisions.
+## Table of Contents
+- [Folder Structure](#folder-structure)
+- [Tech Stack](#tech-stack)
+- [Design Patterns and Principles](#design-patterns-and-principles)
+- [Purpose and Key Functionalities](#purpose-and-key-functionalities)
+- [API Endpoints](#api-endpoints)
+- [Dependencies](#dependencies)
+- [Environment Variables](#environment-variables)
+- [Local Setup Instructions](#local-setup-instructions)
 
-The service is designed with flexibility in mind, allowing the management of components necessary for implementing Role-Based Access Control (RBAC), Attribute-Based Access Control (ABAC), and Policy-Based Access Control (PBAC).
-
-## Core Functionality
-
-*   **User Management:** Create, read, update, delete, enable/disable users within the configured Identity Provider (currently AWS Cognito).
-*   **Group Management:** Create, read, delete IdP groups (e.g., Cognito Groups) and manage user membership within these groups.
-*   **Role Management:** Define application-specific roles (stored in the database).
-*   **Permission Management:** Define fine-grained permissions (stored in the database).
-*   **Assignment Management:** Manage relationships between Users, Groups, Roles, and Permissions (e.g., assign roles to groups, assign permissions to roles).
-*   **Policy Management:** Create, read, update, delete authorization policies (e.g., OPA Rego policies) via a pluggable policy engine adapter.
-*   **System:** Provides basic health checks and server information endpoints.
-
-**Note:** This service focuses on the *management* of authorization assets. The *enforcement* of these roles, permissions, and policies at runtime is handled by a separate Authorization Service which consumes the data managed here.
-
-## Architecture
-
-This service follows principles inspired by **Clean Architecture / Hexagonal Architecture**, emphasizing a separation of concerns through distinct layers:
-
-*   **`src/domain`:** Contains the core business logic and entities (e.g., `User`, `Group`, `Role`, `Permission`, `Policy`, Value Objects, Domain Exceptions). It has no dependencies on other layers.
-*   **`src/application`:** Orchestrates use cases. Contains Application Services, Interfaces (Ports) defining contracts for repositories and external adapters, and DTO structures (though DTOs are often placed closer to the API layer). Depends only on the `domain` layer.
-*   **`src/infrastructure`:** Implements interfaces defined in the `application` layer. Handles external concerns like database interactions (DynamoDB Repositories), communication with the IdP (Cognito Adapter), policy engine interactions (Policy Engine Adapter), logging (Winston), configuration loading, etc. Depends on `application` and `domain`.
-*   **`src/api`:** Handles incoming HTTP requests (Controllers, Routes, Middleware, DTOs/Validation Schemas). Interacts with the `application` layer services. Depends on `application` and `domain`.
-*   **`src/shared`:** Contains cross-cutting concerns like constants, base error classes, shared types, and utility functions used across multiple layers.
-
-This layered approach promotes:
-*   **Modularity:** Changes in one layer (e.g., swapping the database) have minimal impact on others.
-*   **Testability:** Each layer can be tested independently, mocking dependencies via interfaces.
-*   **Maintainability:** Clear separation makes the codebase easier to understand and evolve.
-
-The architecture employs the **Ports and Adapters** pattern where application layer interfaces act as "ports" and infrastructure components (like `CognitoUserMgmtAdapter`, `DynamoRoleRepository`, `DynamoDbPolicyEngineAdapter`) act as "adapters".
-
-## Key Design Patterns & Principles
-
-*   **SOLID Principles:** The layered architecture and use of DI promote Single Responsibility, Open/Closed Principle, and Dependency Inversion.
-*   **Dependency Injection (DI):** `tsyringe` is used heavily to manage dependencies, decoupling components and improving testability. Interfaces are defined in `application` and injected into services and adapters.
-*   **Repository Pattern:** Abstracts data persistence logic behind interfaces (`IRoleRepository`, `IPermissionRepository`, `IPolicyRepository`, `IAssignmentRepository`). DynamoDB implementations are provided in `infrastructure`.
-*   **Adapter Pattern:** Used to abstract interactions with external systems like AWS Cognito (`IUserMgmtAdapter`) and the policy management backend (`IPolicyEngineAdapter`).
-*   **Middleware Pattern:** Leveraged extensively in Express for concerns like authentication (`admin.auth.guard`), validation (`validation.middleware`), logging (`requestLogger`), request ID generation, error handling, security headers (`helmet`), and CORS.
-*   **Data Transfer Object (DTO) Pattern:** Zod schemas defined in `src/api/dtos` act as DTOs, providing type safety and runtime validation for API request bodies, query parameters, and route parameters via the `validationMiddleware`.
-*   **Factory Pattern:** Static methods like `fromPersistence` and `fromCognitoUser` on domain entities act as simple factories for object creation from different data sources.
-*   **Circuit Breaker Pattern:** `Opossum` is used in the `CognitoUserMgmtAdapter` to improve resilience against failures or latency when communicating with AWS Cognito.
-*   **Separation of Concerns:** Enforced by the layered architecture.
-*   **Structured Logging:** Winston is used for logging, with distinct development/production formats and context propagation (Request ID, User ID) via `AsyncLocalStorage`.
-*   **Configuration Management:** Centralized configuration loading from environment variables via `EnvironmentConfigService`, injected via DI.
-
-## Project Structure
-
+## Folder Structure
 ```
-└── 📁src
-├── 📁api # Handles HTTP layer: Controllers, Routes, DTOs, Middleware
-├── 📁application # Application logic: Services, Interfaces (Ports)
-├── 📁domain # Core business logic: Entities, Value Objects, Domain Exceptions
-├── 📁infrastructure # Implementations: Adapters, DB Repos, Logging, Config
-├── 📁shared # Cross-cutting concerns: Constants, Base Errors, Utils, Shared Types
-├── app.ts # Express application setup
-├── container.ts # Dependency Injection container setup (tsyringe)
-└── main.ts # Application entry point, bootstrapping
-└── 📁tests # Unit, Integration, and E2E tests
-├── 📁e2e
-├── 📁helpers # Test helpers (e.g., DB setup)
-├── 📁integration # Integration tests (DB, Routes, Adapters)
-├── 📁mocks # Reusable mocks for services, repos, etc.
-└── 📁unit # Unit tests per layer/module
-└── .env.example # Example environment file
-└── Dockerfile # (If containerization is used)
-└── docker-compose.yml # (For local development/testing with dependencies like DynamoDB Local)
-└── package.json
-└── tsconfig.json
-└── README.md
+user-management-service/
+├── src/
+│   ├── api/                  # API layer (controllers, DTOs, middlewares, routes)
+│   │   ├── controllers/      # Request handling logic
+│   │   ├── dtos/             # Data Transfer Objects for request/response validation
+│   │   ├── middlewares/      # Express middleware (e.g., authentication, authorization)
+│   │   └── routes/           # Defines API endpoints and maps to controllers
+│   ├── application/          # Application layer (orchestrates domain logic, use cases)
+│   ├── domain/               # Domain layer (core business logic, entities, policies)
+│   ├── infrastructure/       # Infrastructure layer (database interactions, external services, logging)
+│   ├── shared/               # Shared utilities, types, constants
+│   ├── app.ts                # Express application setup
+│   ├── container.ts          # Dependency Injection container setup (tsyringe)
+│   └── main.ts               # Application entry point
+├── tests/                    # Unit, Integration, and E2E tests
+├── .env.example              # Example environment variables
+├── Dockerfile                # Docker build instructions
+├── package.json              # Project dependencies and scripts
+├── pnpm-lock.yaml            # pnpm lock file
+└── README.md                 # This documentation
 ```
 
-## Technology Stack
+## Tech Stack
+- **Language:** TypeScript
+- **Runtime:** Node.js
+- **Web Framework:** Express.js
+- **Package Manager:** pnpm
+- **Database:** AWS DynamoDB (via AWS SDK)
+- **Authentication/Authorization:** JSON Web Tokens (JWT), JWKS-RSA (for JWT verification)
+- **Dependency Injection:** tsyringe
+- **Validation:** class-validator, Zod
+- **Logging:** Winston (with CloudWatch and Elasticsearch transports)
+- **Observability:** OpenTelemetry (for tracing and metrics), Prometheus (via `prom-client`)
+- **Resilience:** Opossum (Circuit Breaker)
+- **Archiving:** Archiver (for creating OPA policy bundles)
 
-*   **Runtime:** Node.js (v18+ recommended)
-*   **Language:** TypeScript
-*   **Framework:** Express
-*   **Dependency Injection:** `tsyringe`
-*   **Database:** AWS DynamoDB (`@aws-sdk/client-dynamodb`, `@aws-sdk/util-dynamodb`, `@aws-sdk/lib-dynamodb`)
-*   **Identity Provider:** AWS Cognito (`@aws-sdk/client-cognito-identity-provider`)
-*   **Validation:** Zod
-*   **Logging:** Winston, `winston-cloudwatch` (for production)
-*   **Resilience:** Opossum (Circuit Breaker)
-*   **Security:** Helmet, CORS
-*   **Auth/JWT:** `jsonwebtoken`, `jwks-rsa`
-*   **Testing:** Jest, Supertest, `aws-sdk-client-mock`, `jest-mock-extended`
-*   **Utilities:** `uuid`, `reflect-metadata`
-*   **Package Manager:** pnpm
+## Design Patterns and Principles
+- **Layered Architecture:** The service is structured into distinct layers (API, Application, Domain, Infrastructure) to promote separation of concerns and maintainability.
+- **Dependency Injection:** Utilizes `tsyringe` to manage dependencies, making the codebase more modular and testable.
+- **Circuit Breaker:** Implements the Circuit Breaker pattern using `opossum` to prevent cascading failures and improve system resilience.
+- **Observability:** Designed with observability in mind, integrating OpenTelemetry for distributed tracing and `prom-client` for Prometheus metrics.
+- **Policy Bundle Generation:** Dynamically generates OPA policy bundles, enabling external policy enforcement.
 
-## Setup & Installation
+## Purpose and Key Functionalities
+**Purpose:** To provide comprehensive management of users, their roles, groups, and permissions, and to serve as the central repository for policy definitions within the PBAC system.
 
-**Prerequisites:**
+**Key Functionalities:**
+- **User Management:** CRUD operations for users, including attribute updates, activation/deactivation, password management, and group membership management.
+- **Group Management:** CRUD operations for groups, including role assignments and user listing.
+- **Role Management:** CRUD operations for roles, including permission assignments.
+- **Permission Management:** CRUD operations for permissions.
+- **Policy Management:** CRUD operations for policies, including versioning and rollback capabilities.
+- **OPA Policy Bundle Provisioning:** Generates and serves policy bundles to Open Policy Agent (OPA) instances.
+- **System Monitoring:** Provides health check, server information, and Prometheus metrics endpoints for operational visibility.
 
-*   Node.js (>= v18.x recommended)
-*   pnpm (>= v9.x recommended)
-*   AWS Account & AWS CLI configured (with credentials for accessing Cognito and DynamoDB, preferably via IAM roles/profiles for deployed environments)
-*   (Optional) Docker & Docker Compose (for running DynamoDB Local)
+## API Endpoints
 
-**Steps:**
+### Admin User Routes (Prefix: `/admin/users`)
+These endpoints require JWT authentication and an appropriate admin role.
 
-1.  **Clone Repository:**
+- `POST /`: Create a new user.
+- `GET /`: List users (with optional query parameters for filtering).
+- `GET /:username`: Retrieve details for a specific user.
+- `PUT /:username/attributes`: Update attributes for a specific user.
+- `DELETE /:username`: Deactivate a user.
+- `PUT /:username/reactivate`: Reactivate a deactivated user.
+- `POST /:username/initiate-password-reset`: Initiate a password reset for a user.
+- `POST /:username/set-password`: Set a new password for a user.
+- `POST /:username/groups`: Add a user to a group.
+- `DELETE /:username/groups/:groupName`: Remove a user from a group.
+- `GET /:username/groups`: List groups a user belongs to.
+
+### Admin Group Routes (Prefix: `/admin/groups`)
+These endpoints require JWT authentication and an appropriate admin role.
+
+- `POST /`: Create a new group.
+- `GET /`: List groups.
+- `GET /:groupName`: Retrieve details for a specific group.
+- `DELETE /:groupName`: Delete a group.
+- `PUT /:groupName/reactivate`: Reactivate a deactivated group.
+- `POST /:groupName/roles`: Assign a role to a group.
+- `DELETE /:groupName/roles/:roleName`: Remove a role from a group.
+- `GET /:groupName/roles`: List roles assigned to a group.
+
+### Admin Permission Routes (Prefix: `/admin/permissions`)
+These endpoints require JWT authentication and an appropriate admin role.
+
+- `POST /`: Create a new permission.
+- `GET /`: List permissions.
+- `GET /:permissionName`: Retrieve details for a specific permission.
+- `PUT /:permissionName`: Update a permission.
+- `DELETE /:permissionName`: Delete a permission.
+- `GET /:permissionName/roles`: List roles associated with a permission.
+
+### Admin Role Routes (Prefix: `/admin/roles`)
+These endpoints require JWT authentication and an appropriate admin role.
+
+- `POST /`: Create a new role.
+- `GET /`: List roles.
+- `GET /:roleName`: Retrieve details for a specific role.
+- `PUT /:roleName`: Update a role.
+- `DELETE /:roleName`: Delete a role.
+- `POST /:roleName/permissions`: Assign a permission to a role.
+- `DELETE /:roleName/permissions/:permissionName`: Remove a permission from a role.
+- `GET /:roleName/permissions`: List permissions assigned to a role.
+
+### Admin Policy Routes (Prefix: `/admin/policies`)
+These endpoints require JWT authentication and an appropriate admin role.
+
+- `POST /`: Create a new policy.
+- `GET /`: List policies.
+- `GET /:policyId`: Retrieve details for a specific policy (latest version).
+- `PUT /:policyId`: Update a policy (creates a new version).
+- `DELETE /:policyId`: Deactivate/Delete a policy.
+- `GET /:policyId/versions/:version`: Retrieve a specific version of a policy.
+- `GET /:policyId/versions`: List all versions for a policy.
+- `POST /:policyId/rollback/:version`: Rollback a policy to a specific version.
+
+### Public Policy Routes (Prefix: `/policies`)
+
+- `GET /bundle`: Retrieves all active policies as an OPA-compatible bundle. This endpoint is typically consumed by OPA instances.
+
+### System Endpoints
+
+- `GET /health`: Returns the health status of the service.
+- `GET /server-info`: Provides general information about the server and service.
+- `GET /metrics`: Exposes Prometheus-compatible metrics for monitoring.
+
+## Dependencies
+Key dependencies include:
+- `@aws-sdk/client-dynamodb`, `@aws-sdk/util-dynamodb`: For interacting with AWS DynamoDB.
+- `express`: Web framework.
+- `jsonwebtoken`, `jwks-rsa`: For JWT handling and verification.
+- `tsyringe`: Dependency injection container.
+- `class-validator`, `zod`: For data validation.
+- `winston`: Logging library.
+- `@opentelemetry/*`: For distributed tracing and metrics.
+- `prom-client`: For Prometheus metrics.
+- `opossum`: For circuit breaker implementation.
+- `archiver`: For creating policy bundles.
+
+## Environment Variables
+Configuration is managed via environment variables. A `.env.example` file is provided as a template.
+
+| Variable                  | Description                                          | Example Value       |
+|---------------------------|------------------------------------------------------|---------------------|
+| `NODE_ENV`                | Node.js environment (e.g., development, production). | `development`       |
+| `PORT`                    | Port on which the service will listen.               | `3002`              |
+| `LOG_LEVEL`               | Minimum logging level (e.g., info, debug, error).    | `info`              |
+| `AWS_REGION`              | AWS region for DynamoDB and Cognito interactions.    | `us-east-1`         |
+| `COGNITO_USER_POOL_ID`    | AWS Cognito User Pool ID (for admin guard).          | `your-user-pool-id` |
+| `COGNITO_CLIENT_ID`       | AWS Cognito Client ID (for admin guard).             | `your-client-id`    |
+| `COGNITO_ISSUER`          | Cognito Issuer URL for JWT validation.               | `https://cognito-idp.{region}.amazonaws.com/{userPoolId}` |
+| `COGNITO_JWKS_URI`        | Cognito JWKS URI for JWT validation.                 | `https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json` |
+
+## Local Setup Instructions
+
+To set up and run the User Management Service locally, follow these steps:
+
+1.  **Prerequisites:**
+    *   Node.js (v20 or higher recommended)
+    *   pnpm (v8 or higher recommended)
+    *   Docker and Docker Compose
+
+2.  **Clone the Repository:**
     ```bash
     git clone <repository-url>
-    cd <repository-directory>
+    cd user-management-service
     ```
-2.  **Install Dependencies:**
+
+3.  **Install Dependencies:**
     ```bash
     pnpm install
     ```
-3.  **Configure Environment:**
-    *   Copy the example environment file:
-        ```bash
-        cp .env.example .env
-        ```
-    *   Edit the `.env` file and provide necessary values for your environment (AWS Region, Cognito Pool ID/Client ID, DynamoDB table name, etc.). See the [Configuration](#configuration) section below for required variables.
 
-## Running the Service
-
-*   **Development:**
-    *   Uses `ts-node-dev` for automatic restarts on file changes.
-    *   Loads environment variables from `.env` using the `--env-file` flag.
-    *   (Optional) Start DynamoDB Local if using it for development: `docker-compose up -d dynamodb-local` (assuming service name in `docker-compose.yml`)
+4.  **Environment Configuration:**
+    Create a `.env` file in the root of the `user-management-service` directory by copying `.env.example` and filling in the appropriate values.
     ```bash
-    pnpm dev
+    cp .env.example .env
+    # Edit .env with your specific AWS credentials and Cognito details
     ```
-*   **Build for Production:**
-    *   Compiles TypeScript to JavaScript in the `dist` folder.
-    ```bash
-    pnpm build
-    ```
-*   **Production:**
-    *   Runs the compiled JavaScript code from the `dist` folder.
-    *   Ensure production environment variables are set (e.g., via system environment, `.env` file passed at runtime, or platform configuration).
-    ```bash
-    node dist/main.js
-    ```
-*   **Docker (Example):**
-    *   Build the image: `docker-compose build app` (replace `app` with your service name in `docker-compose.yml`)
-    *   Run with dependencies: `docker-compose up`
 
-## Running Tests
+5.  **Run with Docker Compose (Recommended for local development):**
+    The `docker-compose.yml` in the project root orchestrates all services, including local DynamoDB.
+    Navigate to the project root (`E:\NodeJS\PBAC_Auth`) and run:
+    ```bash
+    docker compose up -d dynamodb-local
+    ```
+    Then, from the `user-management-service` directory, start the service in development mode:
+    ```bash
+    pnpm run dev
+    ```
 
-*   **Run all tests (Unit + Integration):**
-    *   Ensure DynamoDB Local is running if integration tests require it: `docker-compose up -d dynamodb-local`
-    *   Ensure necessary test environment variables are set (see `tests/jest.setup.ts`).
+6.  **Build and Run (Production-like):**
+    ```bash
+    pnpm run build
+    pnpm run start
+    ```
+
+7.  **Running Tests:**
     ```bash
     pnpm test
     ```
-*   **Run tests in watch mode:**
-    ```bash
-    pnpm test:watch
-    ```
-*   **Generate coverage report:**
-    ```bash
-    pnpm test:coverage
-    ```
-*   **Cognito Integration Tests:** These tests interact with a real AWS Cognito pool and are skipped by default. To enable them:
-    1.  Ensure you have a dedicated **TEST Cognito User Pool**.
-    2.  Configure AWS credentials with **admin permissions** for that pool in your test environment.
-    3.  Set the environment variable `RUN_COGNITO_INTEGRATION_TESTS=true`.
-    ```bash
-    RUN_COGNITO_INTEGRATION_TESTS=true pnpm test tests/integration/Adapter/CognitoUserMgmtAdapter.integration.spec.ts
-    ```
-    **Warning:** Running these tests creates and deletes real AWS resources. Use with caution.
-
-## Configuration
-
-The service uses environment variables for configuration, managed by `src/infrastructure/config/EnvironmentConfigService.ts`. Create a `.env` file (or set system environment variables) based on `.env.example`.
-
-**Required Environment Variables:**
-
-*   `NODE_ENV`: Environment (e.g., `development`, `test`, `production`)
-*   `PORT`: Port the service listens on (e.g., `3000`)
-*   `LOG_LEVEL`: Logging level (e.g., `info`, `debug`, `warn`, `error`)
-*   `AWS_REGION`: AWS region for Cognito and DynamoDB (e.g., `us-east-1`)
-*   `COGNITO_USER_POOL_ID`: Your AWS Cognito User Pool ID.
-*   `COGNITO_CLIENT_ID`: Your AWS Cognito User Pool Client ID (used for token audience validation).
-*   `COGNITO_ISSUER`: Issuer URL for Cognito tokens (e.g., `https://cognito-idp.<region>.amazonaws.com/<pool_id>`).
-*   `COGNITO_JWKS_URI`: JWKS URL for Cognito tokens (e.g., `https://cognito-idp.<region>.amazonaws.com/<pool_id>/.well-known/jwks.json`).
-*   `AUTHZ_TABLE_NAME`: Name of the DynamoDB table used for storing roles, permissions, policies, and assignments.
-
-**Optional/Test-Specific Variables:**
-
-*   `CORS_ORIGIN`: Allowed origin for CORS requests (defaults to `*` in development, **should be restricted in production**).
-*   `DYNAMODB_ENDPOINT_URL`: URL for DynamoDB Local (e.g., `http://localhost:8000`).
-*   `CW_LOG_GROUP_NAME`: CloudWatch Log Group Name (for production logging).
-*   `CW_LOG_STREAM_NAME`: CloudWatch Log Stream Name (for production logging).
-*   `TEST_AUTH_BYPASS_ENABLED`: Set to `true` **only in non-production environments** to enable the test authentication bypass token (see `admin.auth.guard.middleware.ts`).
-
-## API Documentation
-
-[TODO: Add link to Swagger/OpenAPI documentation if generated, or refer developers to the `src/api/routes` and `src/api/dtos` directories for endpoint definitions and request/response schemas.]
-
-Example: API endpoints are defined under `src/api/routes`. Refer to the corresponding DTO files in `src/api/dtos` for request validation schemas.
-
-## Deployment
-
-[TODO: Add notes specific to deploying this service, e.g., Serverless Framework configuration, container deployment steps (ECS/EKS), required IAM permissions for the service role.]
-
-## License
-
-[TODO: Specify the license, e.g., MIT, Apache 2.0]
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END
-
-Remember to fill in the [TODO: ...] sections with specifics about your API documentation strategy, deployment details, and license.
