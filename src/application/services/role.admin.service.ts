@@ -9,7 +9,7 @@ import { ILogger } from '../interfaces/ILogger';
 import { IPermissionRepository } from '../interfaces/IPermissionRepository'; // Needed for validation
 import { IRoleAdminService } from '../interfaces/IRoleAdminService';
 import { IRoleRepository } from '../interfaces/IRoleRepository';
-import { QueryOptions, QueryResult } from '../interfaces/IUserProfileRepository';
+import { QueryOptions, QueryResult } from '../../shared/types/query.types';
 
 @injectable()
 export class RoleAdminService implements IRoleAdminService {

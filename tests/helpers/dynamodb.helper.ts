@@ -1,152 +1,181 @@
-// tests/helpers/dynamodb.helper.ts (Example)
-import {
-    AttributeDefinition,
-    BillingMode,
-    CreateTableCommand,
-    DeleteTableCommand,
-    DynamoDBClient,
-    GlobalSecondaryIndex,
-    KeySchemaElement,
-    KeyType,
-    ProjectionType,
-    ResourceNotFoundException,
-    ScalarAttributeType,
-    waitUntilTableExists,
-    waitUntilTableNotExists
-} from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, BatchWriteItemCommand, ScanCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, TranslateConfig } from "@aws-sdk/lib-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { IConfigService } from "../../src/application/interfaces/IConfigService";
+import { TYPES } from "../../src/shared/constants/types";
+import { container } from "tsyringe";
+import { DynamoDBProvider } from "../../src/infrastructure/persistence/dynamodb/dynamodb.client";
 
-export const TEST_TABLE_NAME = process.env.AUTHZ_TABLE_NAME || 'user-mgmt-authz-test';
-export const GSI1_NAME = 'GSI1'; // For reverse lookups (SK as PK, PK as SK)
-export const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // For listing entities by type
+export const TEST_TABLE_NAME = "TestAuthzTable";
 
-// --- Client Setup ---
-// Create a single client instance for the helper module
-// Ensure it uses credentials and endpoint suitable for testing (likely DynamoDB Local)
-const client = new DynamoDBClient({
-    region: process.env.AWS_REGION || 'us-east-1',
-    endpoint: process.env.DYNAMODB_ENDPOINT_URL || 'http://localhost:8000',
-    // Provide dummy credentials for local testing if needed (SDK might pick up defaults otherwise)
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummykey',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummysecret',
-    },
-});
-// Log the endpoint being used for verification during test runs
-console.log(`DynamoDB Helper: Using endpoint: ${process.env.DYNAMODB_ENDPOINT_URL || 'http://localhost:8000'}`);
+// Use a single client instance for all helper functions
+let testDynamoDBClient: DynamoDBClient;
+let testDynamoDBDocumentClient: DynamoDBDocumentClient;
 
-
-// export function getTestDocumentClient(): DynamoDBDocumentClient {
-//      return DynamoDBDocumentClient.from(client, { // Use the explicit test client
-//          marshallOptions: { removeUndefinedValues: true }
-//      });
-// }
-// -
-
-export async function createTestTable(): Promise<void> {
-    console.log(`Attempting to create test table: ${TEST_TABLE_NAME}`);
-     // Define attributes used in base table and GSIs
-     const attributeDefinitions: AttributeDefinition[] = [
-        { AttributeName: "PK", AttributeType: ScalarAttributeType.S }, // Main Partition Key
-        { AttributeName: "SK", AttributeType: ScalarAttributeType.S }, // Main Sort Key
-        { AttributeName: "EntityType", AttributeType: ScalarAttributeType.S }, // GSI PK for EntityTypeGSI
-        // Add attributes for GSI1 if different from PK/SK (not needed if GSI1 uses PK/SK)
-        // { AttributeName: "GSI1PK", AttributeType: ScalarAttributeType.S }, // Example if GSI1PK is different
-        // { AttributeName: "GSI1SK", AttributeType: ScalarAttributeType.S }, // Example if GSI1SK is different
-    ];
-
-    // Define base table key schema
-    const keySchema: KeySchemaElement[] = [
-        { AttributeName: "PK", KeyType: KeyType.HASH },
-        { AttributeName: "SK", KeyType: KeyType.RANGE },
-    ];
-
-    // Define Global Secondary Indexes
-    const globalSecondaryIndexes: GlobalSecondaryIndex[] = [
-        // GSI for reverse lookups (e.g., find groups for role)
-        {
-            IndexName: GSI1_NAME,
-            KeySchema: [
-                { AttributeName: "SK", KeyType: KeyType.HASH }, // GSI PK is the main table's SK
-                { AttributeName: "PK", KeyType: KeyType.RANGE }, // GSI SK is the main table's PK
-            ],
-            Projection: {
-                ProjectionType: ProjectionType.ALL // Project all attributes
+const getTestClient = () => {
+    if (!testDynamoDBClient) {
+        testDynamoDBClient = new DynamoDBClient({
+            region: "us-east-1", // Or any region, as long as endpoint is local
+            endpoint: process.env.DYNAMODB_ENDPOINT_URL || "http://localhost:8000",
+            credentials: {
+                accessKeyId: "test",
+                secretAccessKey: "test",
             },
-            // Throughput ignored for PAY_PER_REQUEST
-        },
-        // GSI for listing by entity type (e.g., list all roles)
-        {
-            IndexName: ENTITY_TYPE_GSI_NAME,
-            KeySchema: [
-                { AttributeName: "EntityType", KeyType: KeyType.HASH }, // GSI PK is EntityType
-                { AttributeName: "PK", KeyType: KeyType.RANGE }, // GSI SK is main table PK (allows sorting/filtering by PK within type)
-            ],
-            Projection: {
-                ProjectionType: ProjectionType.ALL
-            },
-        }
-    ];
-
-
-    try {
-        const command = new CreateTableCommand({
-            TableName: TEST_TABLE_NAME,
-            AttributeDefinitions: attributeDefinitions,
-            KeySchema: keySchema,
-            GlobalSecondaryIndexes: globalSecondaryIndexes,
-            BillingMode: BillingMode.PAY_PER_REQUEST,
         });
-        await client.send(command); // Use the helper's client instance
-        console.log(`Waiting for table ${TEST_TABLE_NAME} to become active...`);
-        // Wait until the table exists and is active
-        await waitUntilTableExists({ client: client, maxWaitTime: 60 }, { TableName: TEST_TABLE_NAME });
+        const translateConfig: TranslateConfig = { marshallOptions: { removeUndefinedValues: true } };
+        testDynamoDBDocumentClient = DynamoDBDocumentClient.from(testDynamoDBClient, translateConfig);
+    }
+    return { client: testDynamoDBClient, documentClient: testDynamoDBDocumentClient };
+};
+
+export const createTestTable = async () => {
+    const { client } = getTestClient();
+    const command = new CreateTableCommand({
+        TableName: TEST_TABLE_NAME,
+        KeySchema: [
+            { AttributeName: "PK", KeyType: "HASH" },
+            { AttributeName: "SK", KeyType: "RANGE" },
+        ],
+        AttributeDefinitions: [
+            { AttributeName: "PK", AttributeType: "S" },
+            { AttributeName: "SK", AttributeType: "S" },
+            { AttributeName: "EntityTypeGSI_PK", AttributeType: "S" }, // For GSI
+            { AttributeName: "EntityTypeGSI_SK", AttributeType: "S" }, // For GSI
+        ],
+        ProvisionedThroughput: {
+            ReadCapacityUnits: 5,
+            WriteCapacityUnits: 5,
+        },
+        GlobalSecondaryIndexes: [
+            {
+                IndexName: "EntityTypeGSI",
+                KeySchema: [
+                    { AttributeName: "EntityTypeGSI_PK", KeyType: "HASH" },
+                    { AttributeName: "EntityTypeGSI_SK", KeyType: "RANGE" },
+                ],
+                Projection: { ProjectionType: "ALL" },
+                ProvisionedThroughput: {
+                    ReadCapacityUnits: 5,
+                    WriteCapacityUnits: 5,
+                },
+            },
+        ],
+    });
+    try {
+        await client.send(command);
         console.log(`Table ${TEST_TABLE_NAME} created successfully.`);
     } catch (error: any) {
         if (error.name === 'ResourceInUseException') {
-            console.log(`Test table ${TEST_TABLE_NAME} already exists.`);
-            // Consider deleting and recreating for a clean slate if necessary
-            // await deleteTestTable();
-            // await createTestTable();
+            console.warn(`Table ${TEST_TABLE_NAME} already exists.`);
         } else {
-            console.error(`Error creating test table ${TEST_TABLE_NAME}:`, error);
-            throw error; // Fail fast if table creation has other errors
+            console.error(`Error creating table ${TEST_TABLE_NAME}:`, error);
+            throw error;
         }
     }
-}
+};
 
-export async function deleteTestTable(): Promise<void> {
-    console.log(`Attempting to delete test table: ${TEST_TABLE_NAME}`);
+export const deleteTestTable = async () => {
+    const { client } = getTestClient();
+    const command = new DeleteTableCommand({
+        TableName: TEST_TABLE_NAME,
+    });
     try {
-        const command = new DeleteTableCommand({ TableName: TEST_TABLE_NAME });
-        await client.send(command); // Use the helper's client instance
-        console.log(`Waiting for table ${TEST_TABLE_NAME} to be deleted...`);
-        // Wait until the table is deleted
-        await waitUntilTableNotExists({ client: client, maxWaitTime: 120 }, { TableName: TEST_TABLE_NAME });
+        await client.send(command);
         console.log(`Table ${TEST_TABLE_NAME} deleted successfully.`);
     } catch (error: any) {
-        if (error instanceof ResourceNotFoundException || error.name === 'ResourceNotFoundException') {
-            console.log(`Test table ${TEST_TABLE_NAME} not found, skipping deletion.`);
+        if (error.name === 'ResourceNotFoundException') {
+            console.warn(`Table ${TEST_TABLE_NAME} not found for deletion.`);
         } else {
-            console.error(`Error deleting test table ${TEST_TABLE_NAME}:`, error);
-            // Optionally re-throw to make test suite aware of cleanup issues
-            // throw error;
+            console.error(`Error deleting table ${TEST_TABLE_NAME}:`, error);
+            throw error;
         }
     }
-}
+};
 
-export async function clearTestTable(): Promise<void> {
-    // Helper to delete all items (Scan + BatchWrite) - Implement if needed for beforeEach cleanup
-    console.warn('clearTestTable not implemented - using delete/create for now.');
-}
+export const clearTestTable = async () => {
+    const { documentClient } = getTestClient();
+    const scanCommand = new ScanCommand({
+        TableName: TEST_TABLE_NAME,
+        ProjectionExpression: "PK, SK", // Only fetch keys
+    });
 
-// You might also need a function to get the DocumentClient instance for tests
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-let testDocClientInstance: DynamoDBDocumentClient | null = null;
-export function getTestDocumentClient(): DynamoDBDocumentClient {
-     if (!testDocClientInstance) {
-        testDocClientInstance = DynamoDBDocumentClient.from(client, { // Use the base client from the helper
-            marshallOptions: { removeUndefinedValues: true }
-        });
-     }
-     return testDocClientInstance;
-}
+    let items;
+    const itemsToDelete: any[] = [];
+    do {
+        const result = await documentClient.send(scanCommand);
+        items = result.Items;
+        if (items) {
+            items.forEach((item) => {
+                itemsToDelete.push({
+                    DeleteRequest: {
+                        Key: unmarshall(item),
+                    },
+                });
+            });
+        }
+        scanCommand.input.ExclusiveStartKey = result.LastEvaluatedKey; // For pagination
+    } while (scanCommand.input.ExclusiveStartKey);
+
+    if (itemsToDelete.length > 0) {
+        const batchSize = 25; // Max items for BatchWriteItem
+        for (let i = 0; i < itemsToDelete.length; i += batchSize) {
+            const batch = itemsToDelete.slice(i, i + batchSize);
+            const command = new BatchWriteItemCommand({
+                RequestItems: {
+                    [TEST_TABLE_NAME]: batch,
+                },
+            });
+            try {
+                await documentClient.send(command);
+            } catch (error) {
+                console.error(`Error during batch delete:`, error);
+                throw error;
+            }
+        }
+        console.log(`Cleared ${itemsToDelete.length} items from ${TEST_TABLE_NAME}.`);
+    } else {
+        console.log(`Table ${TEST_TABLE_NAME} is already empty.`);
+    }
+};
+
+export const destroyDynamoDBClient = () => {
+    if (testDynamoDBClient) {
+        testDynamoDBClient.destroy();
+        testDynamoDBClient = null as any; // Reset for next test run
+        testDynamoDBDocumentClient = null as any;
+        console.log("DynamoDB test client destroyed.");
+    }
+};
+
+// Setup for integration tests
+export const setupIntegrationTest = () => {
+    // Mock ConfigService to return the test table name
+    const configServiceMock = {
+        getOrThrow: jest.fn((key: string) => {
+            if (key === 'AUTHZ_TABLE_NAME') return TEST_TABLE_NAME;
+            throw new Error(`Unexpected config key: ${key}`);
+        }),
+        get: jest.fn((key: string, defaultValue?: any) => {
+            if (key === 'DYNAMODB_ENDPOINT_URL') return process.env.DYNAMODB_ENDPOINT_URL || "http://localhost:8000";
+            if (key === 'AWS_REGION') return "us-east-1";
+            if (key === 'NODE_ENV') return "test";
+            return defaultValue;
+        }),
+    };
+
+    container.reset(); // Clear previous registrations
+    container.register(TYPES.ConfigService, { useValue: configServiceMock });
+    container.registerSingleton(TYPES.DynamoDBProvider, DynamoDBProvider); // Register the real provider
+
+    // Ensure logger is mocked or configured to avoid console spam during tests
+    const loggerMock = {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+    };
+    container.register(TYPES.Logger, { useValue: loggerMock });
+};
+
+// Re-export DynamoDBProvider for direct injection if needed
+export { DynamoDBProvider } from '../../src/infrastructure/persistence/dynamodb/dynamodb.client';

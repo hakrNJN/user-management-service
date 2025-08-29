@@ -2,11 +2,11 @@
 import 'reflect-metadata'; // Required for tsyringe
 import { IConfigService } from '../../../src/application/interfaces/IConfigService';
 import { IRoleRepository } from '../../../src/application/interfaces/IRoleRepository';
-import { container } from '../../../src/container'; // Use actual container
+import { container } from 'tsyringe'; // Use actual container
 import { Role } from '../../../src/domain/entities/Role';
 import { TYPES } from '../../../src/shared/constants/types';
 import { BaseError } from '../../../src/shared/errors/BaseError';
-import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper'; // Import test table name
+import { createTestTable, deleteTestTable, clearTestTable, destroyDynamoDBClient, TEST_TABLE_NAME, setupIntegrationTest } from '../../helpers/dynamodb.helper'; // Import test table name
 // Note: We use the real repository implementation injected via the container
 
 describe('DynamoRoleRepository Integration Tests', () => {
@@ -15,22 +15,23 @@ describe('DynamoRoleRepository Integration Tests', () => {
 
     // Ensure the test table name is set for the container's config service
     // This assumes your EnvironmentConfigService reads process.env correctly during test setup
-    beforeAll(() => {
-        // Ensure the environment variable used by the actual ConfigService is set
-        // This should match the variable checked within EnvironmentConfigService
-        process.env.AUTHZ_TABLE_NAME = TEST_TABLE_NAME;
-        // It might be necessary to re-resolve or ensure the container picks up the env var
-        // Or directly register the test table name for the test environment if needed
+    beforeAll(async () => {
+        setupIntegrationTest(); // Setup container with test config
         configService = container.resolve<IConfigService>(TYPES.ConfigService);
         expect(configService.getOrThrow('AUTHZ_TABLE_NAME')).toBe(TEST_TABLE_NAME);
 
         roleRepository = container.resolve<IRoleRepository>(TYPES.RoleRepository);
+        await createTestTable(); // Create the test table
+    });
+
+    afterAll(async () => {
+        await deleteTestTable(); // Clean up the test table
+        destroyDynamoDBClient(); // Destroy the DynamoDB client
     });
 
     // Clear table items before each test
     beforeEach(async () => {
-        // Implement clearTestTable helper or rely on delete/create in before/afterAll
-        // For now, we assume beforeAll/afterAll handles table state
+        await clearTestTable(); // Clear table before each test
     });
 
     const testRole1 = new Role('int-test-role-1', 'Integration Test Role 1');
@@ -109,8 +110,8 @@ describe('DynamoRoleRepository Integration Tests', () => {
         // Basic list test (Scan might not be reliable for full verification without pagination)
         const result = await roleRepository.list({ limit: 5 });
         expect(result.items.length).toBeGreaterThanOrEqual(2); // Should find at least the two we created
-        expect(result.items.some(r => r.roleName === testRole1.roleName)).toBe(true);
-        expect(result.items.some(r => r.roleName === testRole2.roleName)).toBe(true);
+        expect(result.items.some((r: Role) => r.roleName === testRole1.roleName)).toBe(true);
+        expect(result.items.some((r: Role) => r.roleName === testRole2.roleName)).toBe(true);
         // Add pagination tests if needed
     });
 });

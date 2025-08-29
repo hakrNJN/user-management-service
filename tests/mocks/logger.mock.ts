@@ -1,9 +1,4 @@
-// tests/mocks/logger.mock.ts
-import { ILogger } from "../../src/application/interfaces/ILogger";
+import { ILogger } from '@src/application/interfaces/ILogger';
+import { mock } from 'jest-mock-extended';
 
-export const mockLogger: jest.Mocked<ILogger> = {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-};
+export const loggerMock = mock<ILogger>();

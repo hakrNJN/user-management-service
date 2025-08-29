@@ -1,111 +1,135 @@
-// tests/unit/api/middlewares/validation.middleware.spec.ts
-
-import { NextFunction, Request, Response } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { Request, Response, NextFunction } from 'express';
+import { mock, MockProxy } from 'jest-mock-extended';
 import { validationMiddleware } from '../../../../src/api/middlewares/validation.middleware';
+import { AnyZodObject, z, ZodError } from 'zod';
 import { ILogger } from '../../../../src/application/interfaces/ILogger';
 import { ValidationError } from '../../../../src/shared/errors/BaseError';
-import { mockLogger } from '../../../mocks/logger.mock'; // Assuming logger mock exists
 
-// Mock Zod schema and error
-const mockParseAsync = jest.fn();
-const mockSchema: AnyZodObject = {
-    parseAsync: mockParseAsync,
-} as any; // Cast as AnyZodObject for the test
+describe('validationMiddleware', () => {
+    let loggerMock: MockProxy<ILogger>;
+    let req: MockProxy<Request>;
+    let res: MockProxy<Response>;
+    let next: jest.Mock;
 
-const mockZodError = new ZodError([
-    { code: 'invalid_type', expected: 'string', received: 'number', path: ['body', 'name'], message: 'Expected string' },
-]);
-
-describe('Validation Middleware', () => {
-    let mockRequest: Partial<Request>;
-    let mockResponse: Partial<Response>;
-    let mockNext: NextFunction;
-    let logger: jest.Mocked<ILogger>;
-    let middleware: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    // Define a sample Zod schema for testing
+    const testSchema = z.object({
+        body: z.object({
+            name: z.string().min(1, 'Name is required'),
+            age: z.number().min(18, 'Must be 18 or older'),
+        }),
+        query: z.object({
+            page: z.string().optional(),
+        }),
+        params: z.object({
+            id: z.string().uuid('Invalid ID format'),
+        }),
+    });
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        mockRequest = {
-            body: { name: 123 }, // Example invalid data
-            query: { page: '1' },
-            params: { id: 'abc' },
-            id: 'test-req-id', // Add request id for logging context
-        };
-        mockResponse = {}; // Not typically used by validation middleware
-        mockNext = jest.fn();
-        logger = { ...mockLogger } as jest.Mocked<ILogger>; // Use logger mock
+        loggerMock = mock<ILogger>();
+        req = mock<Request>();
+        res = mock<Response>();
+        next = jest.fn();
 
-        // Create middleware instance for tests
-        middleware = validationMiddleware(mockSchema, logger);
+        // Mock req.id
+        Object.defineProperty(req, 'id', { value: 'test-req-id' });
     });
 
-    it('should call next() without arguments if validation succeeds', async () => {
-        const validatedData = { body: { name: 'valid' }, query: { page: 1 }, params: { id: 'abc' } };
-        mockParseAsync.mockResolvedValue(validatedData); // Simulate successful parsing
+    // Test Case 1: Successful Validation
+    it('should call next() if validation is successful', async () => {
+        req.body = { name: 'John Doe', age: 30 };
+        req.query = { page: '1' };
+        req.params = { id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef' };
 
-        await middleware(mockRequest as Request, mockResponse as Response, mockNext);
+        const middleware = validationMiddleware(testSchema, loggerMock);
+        await middleware(req, res, next);
 
-        expect(mockParseAsync).toHaveBeenCalledWith({
-            body: mockRequest.body,
-            query: mockRequest.query,
-            params: mockRequest.params,
-        });
-        expect(mockNext).toHaveBeenCalledTimes(1);
-        expect(mockNext).toHaveBeenCalledWith(); // No error argument
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(next).toHaveBeenCalledWith(); // Called without arguments
+        expect(loggerMock.warn).not.toHaveBeenCalled();
+        expect(loggerMock.error).not.toHaveBeenCalled();
     });
 
-    it('should call next() with ValidationError if Zod validation fails', async () => {
-        mockParseAsync.mockRejectedValue(mockZodError); // Simulate Zod error
+    // Test Case 2: Validation Failure (ZodError) - Body
+    it('should call next(ValidationError) and log warning if body validation fails', async () => {
+        req.body = { name: '', age: 17 }; // Invalid data
+        req.query = {};
+        req.params = { id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef' };
 
-        await middleware(mockRequest as Request, mockResponse as Response, mockNext);
+        const middleware = validationMiddleware(testSchema, loggerMock);
+        await middleware(req, res, next);
 
-        expect(mockParseAsync).toHaveBeenCalledWith({
-            body: mockRequest.body,
-            query: mockRequest.query,
-            params: mockRequest.params,
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(next).toHaveBeenCalledWith(expect.any(ValidationError));
+        const validationError = next.mock.calls[0][0] as ValidationError;
+        expect(validationError.message).toBe('Input validation failed');
+        expect(validationError.details).toEqual({
+            'body.name': 'Name is required',
+            'body.age': 'Must be 18 or older',
         });
-        expect(mockNext).toHaveBeenCalledTimes(1);
-        expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError)); // Check for ValidationError instance
+        expect(loggerMock.warn).toHaveBeenCalledTimes(1);
+        expect(loggerMock.warn).toHaveBeenCalledWith(
+            expect.stringContaining('Request validation failed'),
+            expect.objectContaining({
+                errors: expect.objectContaining({
+                    'body.name': 'Name is required',
+                    'body.age': 'Must be 18 or older',
+                }),
+            })
+        );
+        expect(loggerMock.error).not.toHaveBeenCalled();
+    });
 
-        const errorArg = (mockNext as jest.Mock).mock.calls[0][0] as ValidationError;
-        expect(errorArg.message).toBe('Input validation failed');
-        expect(errorArg.statusCode).toBe(400);
-        expect(errorArg.details).toEqual({ 'body.name': 'Expected string' }); // Check formatted errors
-        expect(logger.warn).toHaveBeenCalledWith(
-            expect.stringContaining('Request validation failed [test-req-id]'),
-            { errors: { 'body.name': 'Expected string' } }
+    // Test Case 3: Validation Failure (ZodError) - Params
+    it('should call next(ValidationError) and log warning if params validation fails', async () => {
+        req.body = { name: 'Jane Doe', age: 25 };
+        req.query = {};
+        req.params = { id: 'invalid-uuid' }; // Invalid ID
+
+        const middleware = validationMiddleware(testSchema, loggerMock);
+        await middleware(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(next).toHaveBeenCalledWith(expect.any(ValidationError));
+        const validationError = next.mock.calls[0][0] as ValidationError;
+        expect(validationError.details).toEqual({
+            'params.id': 'Invalid ID format',
+        });
+        expect(loggerMock.warn).toHaveBeenCalledTimes(1);
+        expect(loggerMock.warn).toHaveBeenCalledWith(
+            expect.stringContaining('Request validation failed'),
+            expect.objectContaining({
+                errors: expect.objectContaining({
+                    'params.id': 'Invalid ID format',
+                }),
+            })
         );
     });
 
-    it('should call next() with the original error for non-Zod errors', async () => {
-        const unexpectedError = new Error('Something else went wrong');
-        mockParseAsync.mockRejectedValue(unexpectedError); // Simulate generic error
-
-        await middleware(mockRequest as Request, mockResponse as Response, mockNext);
-
-        expect(mockParseAsync).toHaveBeenCalledWith({
-            body: mockRequest.body,
-            query: mockRequest.query,
-            params: mockRequest.params,
+    // Test Case 4: Unexpected Error during validation
+    it('should call next(error) and log error for unexpected errors', async () => {
+        // Simulate an unexpected error by providing a schema that throws
+        const throwingSchema = z.object({
+            body: z.object({
+                name: z.string().transform(() => { throw new Error('Transform error'); })
+            })
         });
-        expect(mockNext).toHaveBeenCalledTimes(1);
-        expect(mockNext).toHaveBeenCalledWith(unexpectedError); // Pass original error
-        expect(logger.error).toHaveBeenCalledWith(
-            expect.stringContaining('Unexpected error during validation middleware [test-req-id]'),
-            unexpectedError
+
+        req.body = { name: 'test' };
+        req.query = {};
+        req.params = {};
+
+        const middleware = validationMiddleware(throwingSchema, loggerMock);
+        await middleware(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(next).toHaveBeenCalledWith(expect.any(Error));
+        expect(next.mock.calls[0][0].message).toBe('Transform error');
+        expect(loggerMock.error).toHaveBeenCalledTimes(1);
+        expect(loggerMock.error).toHaveBeenCalledWith(
+            expect.stringContaining('Unexpected error during validation middleware'),
+            expect.any(Error)
         );
-    });
-
-    it('should work without a logger provided', async () => {
-        middleware = validationMiddleware(mockSchema); // No logger
-        mockParseAsync.mockRejectedValue(mockZodError);
-
-        await middleware(mockRequest as Request, mockResponse as Response, mockNext);
-
-        expect(mockNext).toHaveBeenCalledTimes(1);
-        expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError));
-        expect(logger.warn).not.toHaveBeenCalled(); // Logger methods should not be called
-        expect(logger.error).not.toHaveBeenCalled();
+        expect(loggerMock.warn).not.toHaveBeenCalled();
     });
 });

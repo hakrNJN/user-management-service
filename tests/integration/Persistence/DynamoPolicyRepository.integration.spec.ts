@@ -1,51 +1,35 @@
-import { DeleteItemCommand } from '@aws-sdk/client-dynamodb';
-import { marshall } from '@aws-sdk/util-dynamodb';
 import 'reflect-metadata'; // Must be first
 
 import { IPolicyRepository } from '../../../src/application/interfaces/IPolicyRepository';
-import { container } from '../../../src/container';
+import { container } from 'tsyringe';
 import { Policy } from '../../../src/domain/entities/Policy';
 import { TYPES } from '../../../src/shared/constants/types';
-import { createTestTable, deleteTestTable, getTestDocumentClient, TEST_TABLE_NAME } from '../../helpers/dynamodb.helper'; // Adjust path
+import { createTestTable, clearTestTable, deleteTestTable, destroyDynamoDBClient, setupIntegrationTest } from '../../helpers/dynamodb.helper'; // Adjust path
 
 // --- Test Suite ---
 describe('DynamoPolicyRepository Integration Tests', () => {
     let policyRepository: IPolicyRepository;
-    const testPoliciesToCleanup: Policy[] = []; // Track created items for cleanup
 
     // --- Test Setup & Teardown ---
     beforeAll(async () => {
-        // Ensure the environment variable used by the actual ConfigService is set
-        process.env.AUTHZ_TABLE_NAME = TEST_TABLE_NAME;
-        await createTestTable(); // Create table before tests run
+        setupIntegrationTest(); // Setup container with test config
         policyRepository = container.resolve<IPolicyRepository>(TYPES.PolicyRepository);
+        await createTestTable(); // Create the test table
     });
 
     afterAll(async () => {
-        await deleteTestTable(); // Delete table after all tests
+        await deleteTestTable(); // Clean up the test table
+        destroyDynamoDBClient(); // Destroy the DynamoDB client
     });
 
-    // Cleanup items created during tests
-    afterEach(async () => {
-        const docClient = getTestDocumentClient(); // Get client for cleanup
-        for (const policy of testPoliciesToCleanup) {
-            try {
-                const pk = `POLICY#${policy.id}`;
-                await docClient.send(new DeleteItemCommand({
-                    TableName: TEST_TABLE_NAME,
-                    Key: marshall({ PK: pk, SK: pk }), // Use marshall for base client
-                }));
-            } catch (e) {
-                // Ignore errors during cleanup (e.g., item already deleted)
-            }
-        }
-        testPoliciesToCleanup.length = 0; // Clear the array
+    // Clear table before each test to ensure a clean state
+    beforeEach(async () => {
+        await clearTestTable();
     });
 
-    // Helper to create and track a policy
+    // Helper to create a policy (no longer needs to track for cleanup)
     const createAndTrackPolicy = async (policy: Policy): Promise<Policy> => {
         await policyRepository.save(policy);
-        testPoliciesToCleanup.push(policy);
         return policy;
     };
 
@@ -201,8 +185,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
             const found = await policyRepository.findById(policy.id);
             expect(found).toBeNull();
 
-            // Remove from cleanup array as it's already deleted
-            testPoliciesToCleanup.pop();
+            
         });
 
         it('should return false when deleting a non-existent policy', async () => {

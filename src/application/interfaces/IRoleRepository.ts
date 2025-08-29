@@ -1,5 +1,5 @@
 import { Role } from "../../domain/entities/Role";
-import { QueryOptions, QueryResult } from "./IUserProfileRepository"; // Reuse pagination types if suitable
+import { QueryOptions, QueryResult } from "../../shared/types/query.types";
 
 /**
  * Defines the contract for persistence operations related to Roles.

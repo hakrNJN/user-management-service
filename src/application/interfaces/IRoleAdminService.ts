@@ -1,6 +1,6 @@
 import { Role } from "../../domain/entities/Role";
 import { AdminUser } from "../../shared/types/admin-user.interface";
-import { QueryOptions, QueryResult } from "./IUserProfileRepository";
+import { QueryOptions, QueryResult } from "../../shared/types/query.types";
 
 /**
  * Defines the contract for the Role Administration application logic.

@@ -10,7 +10,7 @@ import { inject, injectable } from "tsyringe";
 import { IConfigService } from "../../../application/interfaces/IConfigService";
 import { ILogger } from "../../../application/interfaces/ILogger";
 import { IPermissionRepository } from "../../../application/interfaces/IPermissionRepository";
-import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository";
+import { QueryOptions, QueryResult } from "../../../shared/types/query.types";
 import { Permission } from "../../../domain/entities/Permission";
 import { PermissionExistsError } from "../../../domain/exceptions/UserManagementError"; // Import specific errors
 import { TYPES } from "../../../shared/constants/types";

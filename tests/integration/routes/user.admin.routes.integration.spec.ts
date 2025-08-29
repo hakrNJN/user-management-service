@@ -1,5 +1,18 @@
 // tests/integration/user.admin.routes.spec.ts
 
+jest.mock('../../../src/infrastructure/logging/WinstonLogger', () => {
+    return {
+        WinstonLogger: jest.fn().mockImplementation(() => {
+            return {
+                info: jest.fn(),
+                warn: jest.fn(),
+                error: jest.fn(),
+                debug: jest.fn(),
+            };
+        }),
+    };
+});
+
 // --- Core Imports ---
 import { Express } from 'express';
 import 'reflect-metadata';
@@ -110,7 +123,6 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
 
         // Register mocks for dependencies EXCEPT the service (handled by jest.mock)
         container.registerInstance<IConfigService>(TYPES.ConfigService, mockConfigService);
-        container.registerSingleton<ILogger>(TYPES.Logger, WinstonLogger);
         // Service is mocked via jest.mock at top level
         logger = container.resolve<ILogger>(TYPES.Logger);
         app = createApp();

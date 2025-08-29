@@ -1,5 +1,5 @@
 import { Permission } from "../../domain/entities/Permission";
-import { QueryOptions, QueryResult } from "./IUserProfileRepository"; // Reuse pagination types
+import { QueryOptions, QueryResult } from "../../shared/types/query.types";
 
 /**
  * Defines the contract for persistence operations related to Permissions.

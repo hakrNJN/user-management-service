@@ -37,6 +37,9 @@ export const TYPES = {
     // API Layer (Controllers - New)
     PolicyAdminController: Symbol.for('PolicyAdminController'), // Controller for policy admin logic
 
+    // Infrastructure Layer Dependencies
+    JwtValidator: Symbol.for('JwtValidator'),
+
     // ... potentially add symbols for new adapter implementations if needed for specific injection ...
     // DynamoDbPolicyEngineAdapter: Symbol.for('DynamoDbPolicyEngineAdapter'),
 };

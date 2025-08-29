@@ -109,7 +109,7 @@ export class UserAdminService implements IUserAdminService {
      * @returns A promise that resolves to an object containing an array of AdminUserView and an optional pagination token.
      * @throws {Error} If an error occurs during user listing.
      */
-    async listUsers(adminUser: AdminUser, options: ListUsersOptions): Promise<{ users: AdminUserView[], paginationToken?: string }> {
+    async listUsers(adminUser: AdminUser, options: ListUsersOptions): Promise<{ users: AdminUserView[], nextToken?: string }> {
         this.checkAdminPermission(adminUser, 'user:list');
         this.logger.info(`Admin attempting to list users`, { adminUserId: adminUser.id, options });
 
@@ -132,7 +132,7 @@ export class UserAdminService implements IUserAdminService {
             }));
 
             this.logger.info(`Admin successfully listed ${userViews.length} users`, { adminUserId: adminUser.id });
-            return { users: userViews, paginationToken: result.paginationToken };
+            return { users: userViews, nextToken: result.paginationToken };
         } catch (error: any) {
              this.logger.error(`Admin failed to list users`, { adminUserId: adminUser.id, error });
              throw error; // Re-throw adapter errors

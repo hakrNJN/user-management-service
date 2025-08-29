@@ -31,29 +31,33 @@ export const createAdminAuthGuardMiddleware = (
         try {
             // Assume req.user is populated by jwtAuthMiddleware
             if (!req.user) {
-                logger.error(`[AdminGuard - ${requestId}] Authentication failed: req.user not populated. Ensure jwtAuthMiddleware runs before this guard.`);
-                throw new AuthenticationError('Authentication required.');
+                const error = new AuthenticationError('Authentication required.');
+                logger.error('req.user not populated', error);
+                throw error;
             }
 
             const decodedPayload = req.user; // req.user should be the decoded JWT payload
 
             // --- Authorization Check ---
-            const userGroups: string[] = (decodedPayload as any)['cognito:groups'] || [];
+            const userRoles: string[] = decodedPayload.roles || [];
 
-            if (!userGroups.includes(requiredAdminRole)) {
-                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User lacks required role '${requiredAdminRole}'.`, { userGroups, userId: (decodedPayload as any).sub });
+            if (!userRoles.includes(requiredAdminRole)) {
+                logger.warn(`[AdminGuard - ${requestId}] Authorization failed: User lacks required role '${requiredAdminRole}'.`, { roles: userRoles, userId: decodedPayload.id });
                 throw new BaseError('ForbiddenError', 403, `Access denied. Required role '${requiredAdminRole}' missing.`, true);
             }
 
             // --- Attach Admin User Context ---
             req.adminUser = {
-                id: (decodedPayload as any).sub ?? 'unknown-sub',
-                username: (decodedPayload as any)['cognito:username'] ?? (decodedPayload as any).email ?? 'unknown-username',
-                roles: userGroups,
-                attributes: decodedPayload,
+                id: decodedPayload.id,
+                username: decodedPayload.username,
+                roles: userRoles,
+                attributes: decodedPayload.attributes,
             } as AdminUser; // Cast to AdminUser
 
-            logger.info(`[AdminGuard - ${requestId}] Admin authentication successful for user: ${req.adminUser.username} (ID: ${req.adminUser.id})`);
+            logger.info(
+                `[AdminGuard - ${requestId}] Admin authentication successful for user: ${req.adminUser.username} (ID: ${req.adminUser.id})`,
+                { userId: req.adminUser.id, username: req.adminUser.username, roles: req.adminUser.roles }
+            );
             next();
 
         } catch (error: any) {

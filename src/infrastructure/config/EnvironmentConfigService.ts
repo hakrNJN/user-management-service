@@ -197,31 +197,32 @@ export class EnvironmentConfigService implements IConfigService {
      */
     getAllConfig(): Record<string, any> {
         const filteredConfig: Record<string, any> = {};
+
+        // Iterate over all keys in the internal config
         for (const key in this.config) {
-            // Check if the key matches any sensitive pattern
+            const value = this.config[key];
             const isSensitive = this.sensitiveKeyPatterns.some(pattern => pattern.test(key));
-            if (!isSensitive) {
-                filteredConfig[key] = this.config[key];
+            const isRequired = this.requiredKeys.includes(key);
+
+            // If a required key is missing or empty, prioritize showing it as such
+            if (isRequired && (value === undefined || value === '')) {
+                filteredConfig[key] = '[MISSING REQUIRED KEY]';
+            } else if (isSensitive) {
+                // If it's sensitive and not missing/empty, mask it
+                filteredConfig[key] = '********';
             } else {
-                // Optionally include the key but mask the value
-                filteredConfig[key] = '********'; // Mask sensitive values
+                // Otherwise, just copy the value
+                filteredConfig[key] = value;
             }
         }
-        // Ensure required keys are present even if sensitive (they might be needed for context)
+
+        // Ensure any required keys that were not in this.config at all are added as missing
         this.requiredKeys.forEach(reqKey => {
-            if (this.config.hasOwnProperty(reqKey) && !filteredConfig.hasOwnProperty(reqKey)) {
-                if (this.sensitiveKeyPatterns.some(pattern => pattern.test(reqKey))) {
-                    filteredConfig[reqKey] = '********'; // Ensure required sensitive keys are present but masked
-                } else {
-                    // This case shouldn't happen often if requiredKeys are not sensitive
-                    // Or if the required key didn't match a sensitive pattern anyway
-                    filteredConfig[reqKey] = this.config[reqKey];
-                }
-            }else if (!this.config.hasOwnProperty(reqKey)) {
-                // Should not happen due to initial check, but good practice
+            if (!filteredConfig.hasOwnProperty(reqKey)) {
                 filteredConfig[reqKey] = '[MISSING REQUIRED KEY]';
-           }
+            }
         });
+
         return filteredConfig;
     }
 

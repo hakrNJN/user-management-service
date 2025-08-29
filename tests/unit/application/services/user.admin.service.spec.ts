@@ -1,339 +1,288 @@
-import { UserType } from '@aws-sdk/client-cognito-identity-provider'; // Assuming adapter uses this
-import { mock, MockProxy } from 'jest-mock-extended';
-import { ILogger } from '../../../../src/application/interfaces/ILogger';
-import { AdminCreateUserDetails, AdminUpdateUserAttributesDetails, IUserMgmtAdapter, ListUsersOptions } from '../../../../src/application/interfaces/IUserMgmtAdapter';
+import 'reflect-metadata';
+import { container } from 'tsyringe';
 import { UserAdminService } from '../../../../src/application/services/user.admin.service';
-import { AdminUserView } from '../../../../src/domain/entities/AdminUserView';
-import { BaseError, NotFoundError, ValidationError } from '../../../../src/shared/errors/BaseError';
+import { AdminCreateUserDetails, AdminUpdateUserAttributesDetails, ListUsersOptions, ListUsersResult } from '../../../../src/application/interfaces/IUserMgmtAdapter';
 import { AdminUser } from '../../../../src/shared/types/admin-user.interface';
+import { BaseError, NotFoundError, ValidationError } from '../../../../src/shared/errors/BaseError';
+import { UserAlreadyInGroupError } from '../../../../src/domain/exceptions/UserManagementError';
+import { AdminUserView } from '../../../../src/domain/entities/AdminUserView';
+import { UserType } from '@aws-sdk/client-cognito-identity-provider';
+import { userMgmtAdapterMock } from '../../../mocks/userMgmtAdapter.mock';
+import { loggerMock } from '../../../mocks/logger.mock';
 
-// --- Test Suite ---
 describe('UserAdminService', () => {
     let service: UserAdminService;
-    let mockUserMgmtAdapter: MockProxy<IUserMgmtAdapter>;
-    let mockLogger: MockProxy<ILogger>;
 
-    // Mock data
-    const MOCK_ADMIN_USER: AdminUser = {
-        id: 'admin-user-id',
-        username: 'test-admin',
-        roles: ['admin'], // Crucial for permission checks
-    };
-    const MOCK_TARGET_USERNAME = 'target-user';
-    const MOCK_COGNITO_USER: UserType = { // Example structure, adjust based on actual UserType
-        Username: MOCK_TARGET_USERNAME,
-        Attributes: [
-            { Name: 'sub', Value: 'target-user-sub-id' },
-            { Name: 'email', Value: 'target@example.com' },
-            { Name: 'given_name', Value: 'Target' },
-            { Name: 'family_name', Value: 'User' },
-        ],
-        UserCreateDate: new Date(),
-        UserLastModifiedDate: new Date(),
-        Enabled: true,
-        UserStatus: 'CONFIRMED',
-    };
-    const MOCK_ADMIN_USER_VIEW = AdminUserView.fromCognitoUser(MOCK_COGNITO_USER); // Use the actual mapping
-
-    const MOCK_CREATE_DETAILS: AdminCreateUserDetails = {
-        username: 'new-user@example.com',
-        temporaryPassword: 'TempPassword123!',
-        userAttributes: {
-            email: 'new-user@example.com',
-            given_name: 'New',
-            family_name: 'User',
-            email_verified: 'true', // Often required
-        },
-    };
-    const MOCK_UPDATE_DETAILS: AdminUpdateUserAttributesDetails = {
-        username: MOCK_TARGET_USERNAME,
-        attributesToUpdate: {
-            given_name: 'UpdatedFirst',
-            family_name: 'UpdatedLast',
-        },
+    const adminUser: AdminUser = {
+        id: 'admin-id',
+        username: 'admin-user',
+        roles: ['admin'],
     };
 
     beforeEach(() => {
-        // Create fresh mocks for each test
-        mockUserMgmtAdapter = mock<IUserMgmtAdapter>();
-        mockLogger = mock<ILogger>(); // Mock logger to suppress actual logging during tests
-
-        // Instantiate the service with mocks
-        service = new UserAdminService(mockUserMgmtAdapter, mockLogger);
-
-        // Optional: Add default mock implementations if needed across many tests
-        // e.g., mockUserMgmtAdapter.adminGetUser.mockResolvedValue(MOCK_COGNITO_USER);
+        service = container.resolve(UserAdminService);
     });
 
-    it('should be defined', () => {
-        expect(service).toBeDefined();
-    });
-
-    // --- Test createUser ---
     describe('createUser', () => {
-        it('should call adapter.adminCreateUser and return mapped AdminUserView', async () => {
-            // Arrange
-            const createdCognitoUser = { ...MOCK_COGNITO_USER, Username: MOCK_CREATE_DETAILS.username };
-            mockUserMgmtAdapter.adminCreateUser.mockResolvedValue(createdCognitoUser);
-            const expectedView = AdminUserView.fromCognitoUser(createdCognitoUser);
+        it('should create a user successfully', async () => {
+            const userDetails: AdminCreateUserDetails = { username: 'test-user', temporaryPassword: 'Password123!', userAttributes: { email: 'test@example.com' } };
+            const cognitoUser: UserType = { Username: 'test-user', Attributes: [{ Name: 'email', Value: 'test@example.com' }] };
+            userMgmtAdapterMock.adminCreateUser.mockResolvedValue(cognitoUser);
 
-            // Act
-            const result = await service.createUser(MOCK_ADMIN_USER, MOCK_CREATE_DETAILS);
+            const result = await service.createUser(adminUser, userDetails);
 
-            // Assert
-            expect(mockUserMgmtAdapter.adminCreateUser).toHaveBeenCalledWith(MOCK_CREATE_DETAILS);
-            expect(result).toEqual(expectedView);
-            expect(mockLogger.info).toHaveBeenCalled(); // Check logging
+            expect(userMgmtAdapterMock.adminCreateUser).toHaveBeenCalledWith(userDetails);
+            expect(result).toBeInstanceOf(AdminUserView);
+            expect(result.username).toBe('test-user');
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('CREATE_USER'), expect.any(Object));
         });
 
-        it('should re-throw error from adapter', async () => {
-            // Arrange
-            const adapterError = new BaseError('AdapterError', 500, 'Cognito failed', true);
-            mockUserMgmtAdapter.adminCreateUser.mockRejectedValue(adapterError);
+        it('should throw an error if user creation fails', async () => {
+            const userDetails: AdminCreateUserDetails = { username: 'test-user', temporaryPassword: 'Password123!', userAttributes: { email: 'test@example.com' } };
+            const error = new Error('Creation failed');
+            userMgmtAdapterMock.adminCreateUser.mockRejectedValue(error);
 
-            // Act & Assert
-            await expect(service.createUser(MOCK_ADMIN_USER, MOCK_CREATE_DETAILS))
-                .rejects.toThrow(adapterError);
-            expect(mockUserMgmtAdapter.adminCreateUser).toHaveBeenCalledWith(MOCK_CREATE_DETAILS);
-            expect(mockLogger.error).toHaveBeenCalled(); // Check error logging
-        });
-
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            // Arrange
-            const nonAdminUser: AdminUser = { ...MOCK_ADMIN_USER, roles: ['user'] };
-
-            // Act & Assert
-            await expect(service.createUser(nonAdminUser, MOCK_CREATE_DETAILS))
-                .rejects.toThrow(BaseError); // Check for BaseError with 403 status
-             await expect(service.createUser(nonAdminUser, MOCK_CREATE_DETAILS))
-                .rejects.toHaveProperty('statusCode', 403);
-            expect(mockUserMgmtAdapter.adminCreateUser).not.toHaveBeenCalled();
-            expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('permission check failed'), expect.any(Object));
+            await expect(service.createUser(adminUser, userDetails)).rejects.toThrow('Creation failed');
+            expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('FAILED CREATE_USER'), expect.any(Object));
         });
     });
 
-    // --- Test getUser ---
     describe('getUser', () => {
-        it('should call adapter.adminGetUser, adapter.adminListGroupsForUser and return mapped AdminUserView if found', async () => {
-            // Arrange
-            mockUserMgmtAdapter.adminGetUser.mockResolvedValue(MOCK_COGNITO_USER);
-            mockUserMgmtAdapter.adminListGroupsForUser.mockResolvedValue({ groups: [{ GroupName: 'group1' }], nextToken: undefined }); // Mock group fetch
-            const expectedView = AdminUserView.fromCognitoUser(MOCK_COGNITO_USER, ['group1']);
+        it('should return a user view with groups if user is found', async () => {
+            const username = 'test-user';
+            const cognitoUser: UserType = { Username: username, Attributes: [] };
+            const groups = { groups: [{ GroupName: 'group1' }] };
+            userMgmtAdapterMock.adminGetUser.mockResolvedValue(cognitoUser);
+            userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue(groups as any);
 
-            // Act
-            const result = await service.getUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME);
+            const result = await service.getUser(adminUser, username);
 
-            // Assert
-            expect(mockUserMgmtAdapter.adminGetUser).toHaveBeenCalledWith(MOCK_TARGET_USERNAME);
-            expect(mockUserMgmtAdapter.adminListGroupsForUser).toHaveBeenCalledWith(MOCK_TARGET_USERNAME);
-            expect(result).toEqual(expectedView);
-            expect(mockLogger.info).toHaveBeenCalled();
+            expect(userMgmtAdapterMock.adminGetUser).toHaveBeenCalledWith(username);
+            expect(userMgmtAdapterMock.adminListGroupsForUser).toHaveBeenCalledWith(username);
+            expect(result).toBeInstanceOf(AdminUserView);
+            expect(result?.username).toBe(username);
+            expect(result?.groups).toEqual(['group1']);
         });
 
-        it('should return null if adapter.adminGetUser returns null', async () => {
-            // Arrange
-            mockUserMgmtAdapter.adminGetUser.mockResolvedValue(null);
+        it('should return null if user is not found', async () => {
+            const username = 'non-existent-user';
+            userMgmtAdapterMock.adminGetUser.mockRejectedValue(new NotFoundError('User not found'));
 
-            // Act
-            const result = await service.getUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME);
+            const result = await service.getUser(adminUser, username);
 
-            // Assert
             expect(result).toBeNull();
-            expect(mockUserMgmtAdapter.adminGetUser).toHaveBeenCalledWith(MOCK_TARGET_USERNAME);
-            expect(mockUserMgmtAdapter.adminListGroupsForUser).not.toHaveBeenCalled(); // Shouldn't fetch groups if user not found
-            expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('User not found'), expect.any(Object));
-        });
-
-        it('should return null if adapter.adminGetUser throws NotFoundError', async () => {
-            // Arrange
-            const adapterError = new NotFoundError(`User ${MOCK_TARGET_USERNAME} not found`);
-            mockUserMgmtAdapter.adminGetUser.mockRejectedValue(adapterError);
-
-            // Act
-            const result = await service.getUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME);
-
-            // Assert
-            expect(result).toBeNull();
-            expect(mockUserMgmtAdapter.adminGetUser).toHaveBeenCalledWith(MOCK_TARGET_USERNAME);
-            expect(mockLogger.error).toHaveBeenCalled(); // Error is logged
-        });
-
-        it('should re-throw other errors from adapter.adminGetUser', async () => {
-            // Arrange
-            const adapterError = new BaseError('SomeError', 500, 'Something else failed', true);
-            mockUserMgmtAdapter.adminGetUser.mockRejectedValue(adapterError);
-
-            // Act & Assert
-            await expect(service.getUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME))
-                .rejects.toThrow(adapterError);
-            expect(mockLogger.error).toHaveBeenCalled();
-        });
-
-         it('should throw ForbiddenError if admin lacks permission', async () => {
-            // Arrange
-            const nonAdminUser: AdminUser = { ...MOCK_ADMIN_USER, roles: ['user'] };
-
-            // Act & Assert
-            await expect(service.getUser(nonAdminUser, MOCK_TARGET_USERNAME))
-                .rejects.toHaveProperty('statusCode', 403);
-            expect(mockUserMgmtAdapter.adminGetUser).not.toHaveBeenCalled();
         });
     });
 
-    // --- Test listUsers ---
     describe('listUsers', () => {
-        it('should call adapter.adminListUsers and return mapped users and token', async () => {
-            // Arrange
-            const options: ListUsersOptions = { limit: 10, paginationToken: undefined };
-            const adapterResult = {
-                users: [MOCK_COGNITO_USER],
-                paginationToken: 'next-token-123',
-            };
-            mockUserMgmtAdapter.adminListUsers.mockResolvedValue(adapterResult);
-            const expectedViews = [AdminUserView.fromCognitoUser(MOCK_COGNITO_USER)];
-
-            // Act
-            const result = await service.listUsers(MOCK_ADMIN_USER, options);
-
-            // Assert
-            expect(mockUserMgmtAdapter.adminListUsers).toHaveBeenCalledWith(options);
-            expect(result.users).toEqual(expectedViews);
-            expect(result.paginationToken).toBe(adapterResult.paginationToken);
-            expect(mockLogger.info).toHaveBeenCalled();
-        });
-
-        it('should return empty array if adapter returns empty', async () => {
-            // Arrange
-             const options: ListUsersOptions = {};
-             const adapterResult = { users: [], paginationToken: undefined };
-             mockUserMgmtAdapter.adminListUsers.mockResolvedValue(adapterResult);
-
-             // Act
-             const result = await service.listUsers(MOCK_ADMIN_USER, options);
-
-             // Assert
-             expect(result.users).toEqual([]);
-             expect(result.paginationToken).toBeUndefined();
-             expect(mockUserMgmtAdapter.adminListUsers).toHaveBeenCalledWith(options);
-        });
-
-        it('should re-throw error from adapter', async () => {
-            // Arrange
+        it('should list users with default status CONFIRMED', async () => {
             const options: ListUsersOptions = {};
-            const adapterError = new BaseError('AdapterError', 500, 'List failed', true);
-            mockUserMgmtAdapter.adminListUsers.mockRejectedValue(adapterError);
+            const cognitoUsers: ListUsersResult = { users: [{ Username: 'user1' }], paginationToken: 'token' };
+            userMgmtAdapterMock.adminListUsers.mockResolvedValue(cognitoUsers);
+            userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue({ groups: [] } as any);
 
-            // Act & Assert
-            await expect(service.listUsers(MOCK_ADMIN_USER, options))
-                .rejects.toThrow(adapterError);
-            expect(mockLogger.error).toHaveBeenCalled();
+            const result = await service.listUsers(adminUser, options);
+
+            expect(userMgmtAdapterMock.adminListUsers).toHaveBeenCalledWith({ status: 'CONFIRMED' });
+            expect(result.users.length).toBe(1);
+            expect(result.users[0].username).toBe('user1');
+            expect(result.nextToken).toBe('token');
         });
 
-         it('should throw ForbiddenError if admin lacks permission', async () => {
-            // Arrange
-            const nonAdminUser: AdminUser = { ...MOCK_ADMIN_USER, roles: ['user'] };
-            const options: ListUsersOptions = {};
+        it('should allow listing users with any status if status is null', async () => {
+            const options: ListUsersOptions = { status: null as any }; // Cast to any to allow null
+            const cognitoUsers: ListUsersResult = { users: [{ Username: 'user1' }], paginationToken: 'token' };
+            userMgmtAdapterMock.adminListUsers.mockResolvedValue(cognitoUsers);
+            userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue({ groups: [] } as any);
 
-            // Act & Assert
-            await expect(service.listUsers(nonAdminUser, options))
-                .rejects.toHaveProperty('statusCode', 403);
-            expect(mockUserMgmtAdapter.adminListUsers).not.toHaveBeenCalled();
+            await service.listUsers(adminUser, options);
+
+            expect(userMgmtAdapterMock.adminListUsers).toHaveBeenCalledWith({});
         });
     });
 
-    // --- Test updateUserAttributes ---
     describe('updateUserAttributes', () => {
-        it('should call adapter.adminUpdateUserAttributes', async () => {
-            // Arrange
-            mockUserMgmtAdapter.adminUpdateUserAttributes.mockResolvedValue(undefined); // Returns void
+        it('should update user attributes successfully', async () => {
+            const details: AdminUpdateUserAttributesDetails = { username: 'test-user', attributesToUpdate: { email: 'new@example.com' } };
+            userMgmtAdapterMock.adminUpdateUserAttributes.mockResolvedValue(undefined);
 
-            // Act
-            await service.updateUserAttributes(MOCK_ADMIN_USER, MOCK_UPDATE_DETAILS);
+            await service.updateUserAttributes(adminUser, details);
 
-            // Assert
-            expect(mockUserMgmtAdapter.adminUpdateUserAttributes).toHaveBeenCalledWith(MOCK_UPDATE_DETAILS);
-            expect(mockLogger.info).toHaveBeenCalled();
-        });
-
-        it('should re-throw error from adapter', async () => {
-            // Arrange
-            const adapterError = new NotFoundError('User not found'); // Example error
-            mockUserMgmtAdapter.adminUpdateUserAttributes.mockRejectedValue(adapterError);
-
-            // Act & Assert
-            await expect(service.updateUserAttributes(MOCK_ADMIN_USER, MOCK_UPDATE_DETAILS))
-                .rejects.toThrow(adapterError);
-            expect(mockLogger.error).toHaveBeenCalled();
-        });
-
-         it('should throw ForbiddenError if admin lacks permission', async () => {
-            // Arrange
-            const nonAdminUser: AdminUser = { ...MOCK_ADMIN_USER, roles: ['user'] };
-
-            // Act & Assert
-            await expect(service.updateUserAttributes(nonAdminUser, MOCK_UPDATE_DETAILS))
-                .rejects.toHaveProperty('statusCode', 403);
-            expect(mockUserMgmtAdapter.adminUpdateUserAttributes).not.toHaveBeenCalled();
+            expect(userMgmtAdapterMock.adminUpdateUserAttributes).toHaveBeenCalledWith(details);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully updated attributes'), expect.any(Object));
         });
     });
 
-    // --- Test deleteUser ---
     describe('deleteUser', () => {
-        it('should call adapter.adminDeleteUser', async () => {
-            // Arrange
-            mockUserMgmtAdapter.adminDeleteUser.mockResolvedValue(undefined); // Returns void
+        it('should delete a user successfully', async () => {
+            const username = 'test-user';
+            userMgmtAdapterMock.adminDeleteUser.mockResolvedValue(undefined);
 
-            // Act
-            await service.deleteUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME);
+            await service.deleteUser(adminUser, username);
 
-            // Assert
-            expect(mockUserMgmtAdapter.adminDeleteUser).toHaveBeenCalledWith(MOCK_TARGET_USERNAME);
-            expect(mockLogger.info).toHaveBeenCalled();
+            expect(userMgmtAdapterMock.adminDeleteUser).toHaveBeenCalledWith(username);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('DELETE_USER'), expect.any(Object));
         });
 
-        it('should throw ValidationError if admin tries to delete self', async () => {
-            // Arrange
-            const selfAdmin: AdminUser = { ...MOCK_ADMIN_USER, username: MOCK_TARGET_USERNAME };
-
-            // Act & Assert
-            await expect(service.deleteUser(selfAdmin, MOCK_TARGET_USERNAME))
-                .rejects.toThrow(ValidationError);
-             await expect(service.deleteUser(selfAdmin, MOCK_TARGET_USERNAME))
-                .rejects.toThrow('Cannot delete your own admin account.');
-            expect(mockUserMgmtAdapter.adminDeleteUser).not.toHaveBeenCalled();
-        });
-
-        it('should re-throw error from adapter', async () => {
-            // Arrange
-            const adapterError = new NotFoundError('User not found'); // Example error
-            mockUserMgmtAdapter.adminDeleteUser.mockRejectedValue(adapterError);
-
-            // Act & Assert
-            await expect(service.deleteUser(MOCK_ADMIN_USER, MOCK_TARGET_USERNAME))
-                .rejects.toThrow(adapterError);
-            expect(mockLogger.error).toHaveBeenCalled();
-        });
-
-         it('should throw ForbiddenError if admin lacks permission', async () => {
-            // Arrange
-            const nonAdminUser: AdminUser = { ...MOCK_ADMIN_USER, roles: ['user'] };
-
-            // Act & Assert
-            await expect(service.deleteUser(nonAdminUser, MOCK_TARGET_USERNAME))
-                .rejects.toHaveProperty('statusCode', 403);
-            expect(mockUserMgmtAdapter.adminDeleteUser).not.toHaveBeenCalled();
+        it('should throw a validation error when trying to delete own account', async () => {
+            const username = adminUser.username;
+            await expect(service.deleteUser(adminUser, username)).rejects.toThrow(ValidationError);
         });
     });
 
-    // Add similar tests for other methods:
-    // - disableUser
-    // - enableUser
-    // - initiatePasswordReset
-    // - setUserPassword
-    // - addUserToGroup
-    // - removeUserFromGroup
-    // - listGroupsForUser
-    // - listUsersInGroup
-    // Remember to test success cases, expected error cases (like NotFoundError, ValidationError),
-    // adapter errors being re-thrown, and permission checks.
+    describe('disableUser', () => {
+        it('should disable a user successfully', async () => {
+            const username = 'test-user';
+            userMgmtAdapterMock.adminDisableUser.mockResolvedValue(undefined);
+
+            await service.disableUser(adminUser, username);
+
+            expect(userMgmtAdapterMock.adminDisableUser).toHaveBeenCalledWith(username);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('DEACTIVATE_USER'), expect.any(Object));
+        });
+
+        it('should throw a validation error when trying to disable own account', async () => {
+            const username = adminUser.username;
+            await expect(service.disableUser(adminUser, username)).rejects.toThrow(ValidationError);
+        });
+    });
+
+    describe('enableUser', () => {
+        it('should enable a user successfully', async () => {
+            const username = 'test-user';
+            userMgmtAdapterMock.adminEnableUser.mockResolvedValue(undefined);
+
+            await service.enableUser(adminUser, username);
+
+            expect(userMgmtAdapterMock.adminEnableUser).toHaveBeenCalledWith(username);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('REACTIVATE_USER'), expect.any(Object));
+        });
+    });
+
+    describe('initiatePasswordReset', () => {
+        it('should initiate password reset successfully', async () => {
+            const username = 'test-user';
+            userMgmtAdapterMock.adminInitiatePasswordReset.mockResolvedValue(undefined);
+
+            await service.initiatePasswordReset(adminUser, username);
+
+            expect(userMgmtAdapterMock.adminInitiatePasswordReset).toHaveBeenCalledWith(username);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully initiated password reset'), expect.any(Object));
+        });
+    });
+
+    describe('setUserPassword', () => {
+        it('should set user password successfully', async () => {
+            const username = 'test-user';
+            const password = 'NewPassword123!';
+            userMgmtAdapterMock.adminSetUserPassword.mockResolvedValue(undefined);
+
+            await service.setUserPassword(adminUser, username, password, true);
+
+            expect(userMgmtAdapterMock.adminSetUserPassword).toHaveBeenCalledWith(username, password, true);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('SET_USER_PASSWORD'), expect.any(Object));
+        });
+    });
+
+    describe('addUserToGroup', () => {
+        it('should add user to group successfully', async () => {
+            const username = 'test-user';
+            const groupName = 'group1';
+            userMgmtAdapterMock.adminAddUserToGroup.mockResolvedValue(undefined);
+
+            await service.addUserToGroup(adminUser, username, groupName);
+
+            expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledWith(username, groupName);
+            expect(loggerMock.info).toHaveBeenCalledWith(`Admin attempting to add user ${username} to group ${groupName}`, { adminUserId: adminUser.id });
+            expect(loggerMock.info).toHaveBeenCalledWith(`Admin successfully added user ${username} to group ${groupName}.`);
+        });
+
+        it('should throw UserAlreadyInGroupError if user is already in group', async () => {
+            const username = 'test-user';
+            const groupName = 'group1';
+            const error = new Error('User is already in group');
+            userMgmtAdapterMock.adminAddUserToGroup.mockRejectedValue(error);
+
+            await expect(service.addUserToGroup(adminUser, username, groupName)).rejects.toThrow(UserAlreadyInGroupError);
+        });
+    });
+
+    describe('removeUserFromGroup', () => {
+        it('should remove user from group successfully', async () => {
+            const username = 'test-user';
+            const groupName = 'group1';
+            userMgmtAdapterMock.adminRemoveUserFromGroup.mockResolvedValue(undefined);
+
+            await service.removeUserFromGroup(adminUser, username, groupName);
+
+            expect(userMgmtAdapterMock.adminRemoveUserFromGroup).toHaveBeenCalledWith(username, groupName);
+            expect(loggerMock.info).toHaveBeenCalledWith(`Admin attempting to remove user ${username} from group ${groupName}`, { adminUserId: adminUser.id });
+            expect(loggerMock.info).toHaveBeenCalledWith(`Admin successfully removed user ${username} from group ${groupName}.`);
+        });
+    });
+
+    describe('listGroupsForUser', () => {
+        it('should list groups for a user', async () => {
+            const username = 'test-user';
+            const groups = { groups: [{ GroupName: 'group1' }] };
+            userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue(groups as any);
+
+            const result = await service.listGroupsForUser(adminUser, username);
+
+            expect(userMgmtAdapterMock.adminListGroupsForUser).toHaveBeenCalledWith(username, undefined, undefined);
+            expect(result.groups.length).toBe(1);
+            expect(result.groups[0].groupName).toBe('group1');
+            expect(result.nextToken).toBeUndefined(); // Changed from toBeNull()
+        });
+
+        
+    });
+
+    describe('listUsersInGroup', () => {
+        it('should list users in a group', async () => {
+            const groupName = 'group1';
+            const users = { users: [{ Username: 'user1' }], nextToken: 'token' };
+            userMgmtAdapterMock.adminListUsersInGroup.mockResolvedValue(users as any);
+
+            const result = await service.listUsersInGroup(adminUser, groupName);
+
+            expect(userMgmtAdapterMock.adminListUsersInGroup).toHaveBeenCalledWith(groupName, undefined, undefined);
+            expect(result.users.length).toBe(1);
+            expect(result.users[0].username).toBe('user1');
+            expect(result.nextToken).toBe('token');
+        });
+    });
+
+    describe('updateUserGroups', () => {
+        it('should add and remove groups to match the new set of groups', async () => {
+            const username = 'test-user';
+            const currentGroups = { groups: [{ GroupName: 'group1' }, { GroupName: 'group2' }] };
+            const newGroupNames = ['group2', 'group3'];
+
+            userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue(currentGroups as any);
+            userMgmtAdapterMock.adminAddUserToGroup.mockResolvedValue(undefined);
+            userMgmtAdapterMock.adminRemoveUserFromGroup.mockResolvedValue(undefined);
+
+            await service.updateUserGroups(adminUser, username, newGroupNames);
+
+            expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledWith(username, 'group3');
+            expect(userMgmtAdapterMock.adminRemoveUserFromGroup).toHaveBeenCalledWith(username, 'group1');
+            expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledTimes(1);
+            expect(userMgmtAdapterMock.adminRemoveUserFromGroup).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('UPDATE_USER_GROUPS'), expect.objectContaining({
+                added: ['group3'],
+                removed: ['group1']
+            }));
+        });
+    });
+
+    describe('Permissions', () => {
+        it('should throw ForbiddenError if admin user does not have required role', async () => {
+            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const userDetails: AdminCreateUserDetails = { username: 'test-user', temporaryPassword: 'Password123!', userAttributes: { email: 'test@example.com' } };
+
+            await expect(service.createUser(nonAdminUser, userDetails)).rejects.toThrow(BaseError);
+            await expect(service.createUser(nonAdminUser, userDetails)).rejects.toHaveProperty('statusCode', 403);
+        });
+    });
 });

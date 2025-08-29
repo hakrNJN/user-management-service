@@ -1,26 +1,30 @@
 // tests/integration/DynamoUserProfileRepository.integration.spec.ts
 import 'reflect-metadata';
 import { IUserProfileRepository } from '../../../src/application/interfaces/IUserProfileRepository'; // Assuming path
-import { container } from '../../../src/container';
+import { container } from 'tsyringe';
 import { UserProfile } from '../../../src/domain/entities/UserProfile'; // Assuming path
 import { TYPES } from '../../../src/shared/constants/types';
 import { BaseError } from '../../../src/shared/errors/BaseError';
-// Assuming a separate User Profile table or different PK/SK structure
-// Adjust TEST_TABLE_NAME and PK/SK structure if using the same table
+import { createTestTable, deleteTestTable, clearTestTable, destroyDynamoDBClient, TEST_TABLE_NAME, setupIntegrationTest } from '../../helpers/dynamodb.helper';
 
 describe('DynamoUserProfileRepository Integration Tests', () => {
     let userProfileRepository: IUserProfileRepository;
-    const USER_PROFILE_TABLE_NAME = process.env.USER_PROFILE_TABLE_NAME_TEST || 'user-profiles-test'; // Use separate table potentially
 
-    // Assume table creation/deletion handled globally or via helpers for USER_PROFILE_TABLE_NAME
+    beforeAll(async () => {
+        setupIntegrationTest(); // Setup container with test config
+        await createTestTable();
+        userProfileRepository = container.resolve<IUserProfileRepository>(TYPES.UserProfileRepository);
+    });
 
-    beforeAll(() => {
-        process.env.AUTHZ_TABLE_NAME = USER_PROFILE_TABLE_NAME; // If it uses same config key
-        // OR: Register a specific table name for UserProfile repo if needed
-        userProfileRepository = container.resolve<IUserProfileRepository>(TYPES.UserProfileRepository); // Assuming registration exists
+    afterAll(async () => {
+        await deleteTestTable();
+        destroyDynamoDBClient();
     });
 
     // Add beforeEach/afterEach for item cleanup
+    beforeEach(async () => {
+        await clearTestTable();
+    });
 
     const profile1 = new UserProfile('user-prof-1', 'profile1@test.com', 'Profile', 'One');
     const profile2 = new UserProfile('user-prof-2', 'profile2@test.com', 'Profile', 'Two');

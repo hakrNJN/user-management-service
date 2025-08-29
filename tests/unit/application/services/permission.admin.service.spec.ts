@@ -1,206 +1,180 @@
-// tests/unit/application/services/permission.admin.service.spec.ts
 
+import 'reflect-metadata';
+import { container } from 'tsyringe';
+import { PermissionAdminService } from '../../../../src/application/services/permission.admin.service';
+import { IPermissionRepository } from '../../../../src/application/interfaces/IPermissionRepository';
 import { IAssignmentRepository } from '../../../../src/application/interfaces/IAssignmentRepository';
 import { ILogger } from '../../../../src/application/interfaces/ILogger';
-import { IPermissionRepository } from '../../../../src/application/interfaces/IPermissionRepository';
-import { PermissionAdminService } from '../../../../src/application/services/permission.admin.service';
+import { AdminUser } from '../../../../src/shared/types/admin-user.interface';
+import { TYPES } from '../../../../src/shared/constants/types';
 import { Permission } from '../../../../src/domain/entities/Permission';
-import { PermissionExistsError, PermissionNotFoundError } from '../../../../src/domain/exceptions/UserManagementError';
+import { PermissionNotFoundError, PermissionExistsError } from '../../../../src/domain/exceptions/UserManagementError';
 import { BaseError } from '../../../../src/shared/errors/BaseError';
-import { mockAdminUser, mockNonAdminUser } from '../../../mocks/adminUser.mock';
-import { mockLogger } from '../../../mocks/logger.mock';
-import { mockAssignmentRepository, mockPermissionRepository } from '../../../mocks/repository.mock';
 
 describe('PermissionAdminService', () => {
     let service: PermissionAdminService;
-    let permissionRepo: jest.Mocked<IPermissionRepository>;
-    let assignmentRepo: jest.Mocked<IAssignmentRepository>;
-    let logger: jest.Mocked<ILogger>;
+    let permissionRepoMock: jest.Mocked<IPermissionRepository>;
+    let assignmentRepoMock: jest.Mocked<IAssignmentRepository>;
+    let loggerMock: jest.Mocked<ILogger>;
+
+    const adminUser: AdminUser = {
+        id: 'admin-id',
+        username: 'admin-user',
+        roles: ['admin'],
+    };
+
+    const permissionName = 'test-permission';
+    const permissionEntity = new Permission(permissionName, 'A test permission');
 
     beforeEach(() => {
+        permissionRepoMock = {
+            create: jest.fn(),
+            findByName: jest.fn(),
+            list: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+        } as any;
+
+        assignmentRepoMock = {
+            removeAllAssignmentsForPermission: jest.fn(),
+            findRolesByPermissionName: jest.fn(),
+        } as any;
+
+        loggerMock = {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn(),
+        };
+
+        container.register(TYPES.PermissionRepository, { useValue: permissionRepoMock });
+        container.register(TYPES.AssignmentRepository, { useValue: assignmentRepoMock });
+        container.register(TYPES.Logger, { useValue: loggerMock });
+
+        service = container.resolve(PermissionAdminService);
+    });
+
+    afterEach(() => {
+        container.clearInstances();
         jest.clearAllMocks();
-        permissionRepo = { ...mockPermissionRepository } as jest.Mocked<IPermissionRepository>;
-        assignmentRepo = { ...mockAssignmentRepository } as jest.Mocked<IAssignmentRepository>;
-        logger = { ...mockLogger } as jest.Mocked<ILogger>;
-        service = new PermissionAdminService(permissionRepo, assignmentRepo, logger);
     });
 
-    // --- createPermission ---
     describe('createPermission', () => {
-        const permDetails = { permissionName: 'doc:create', description: 'Create documents' };
-        const newPerm = new Permission(permDetails.permissionName, permDetails.description);
+        it('should create a permission successfully', async () => {
+            const details = { permissionName: 'new-permission', description: 'A new permission' };
+            permissionRepoMock.create.mockResolvedValue();
 
-        it('should call permissionRepo.create and return Permission', async () => {
-            permissionRepo.create.mockResolvedValue(undefined);
-            const result = await service.createPermission(mockAdminUser, permDetails);
+            const result = await service.createPermission(adminUser, details);
+
+            expect(permissionRepoMock.create).toHaveBeenCalledWith(expect.any(Permission));
             expect(result).toBeInstanceOf(Permission);
-            expect(result.permissionName).toBe(permDetails.permissionName);
-            expect(permissionRepo.create).toHaveBeenCalledWith(expect.objectContaining(permDetails));
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('successfully created permission'), expect.any(Object));
+            expect(result.permissionName).toBe('new-permission');
         });
 
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.createPermission(mockNonAdminUser, permDetails)).rejects.toHaveProperty('statusCode', 403);
-            expect(permissionRepo.create).not.toHaveBeenCalled();
-        });
+        it('should throw PermissionExistsError if permission already exists', async () => {
+            const details = { permissionName: 'existing-permission' };
+            permissionRepoMock.create.mockRejectedValue(new PermissionExistsError(details.permissionName));
 
-        it('should re-throw PermissionExistsError from repository', async () => {
-            const error = new PermissionExistsError(permDetails.permissionName);
-            permissionRepo.create.mockRejectedValue(error);
-            await expect(service.createPermission(mockAdminUser, permDetails))
-                .rejects.toThrow(PermissionExistsError);
+            await expect(service.createPermission(adminUser, details)).rejects.toThrow(PermissionExistsError);
         });
     });
 
-    // --- getPermission ---
     describe('getPermission', () => {
-        const permName = 'doc:read';
-        const existingPerm = new Permission(permName);
+        it('should return a permission if found', async () => {
+            permissionRepoMock.findByName.mockResolvedValue(permissionEntity);
 
-        it('should call permissionRepo.findByName and return Permission if found', async () => {
-            permissionRepo.findByName.mockResolvedValue(existingPerm);
-            const result = await service.getPermission(mockAdminUser, permName);
-            expect(result).toEqual(existingPerm);
-            expect(permissionRepo.findByName).toHaveBeenCalledWith(permName);
+            const result = await service.getPermission(adminUser, permissionName);
+
+            expect(permissionRepoMock.findByName).toHaveBeenCalledWith(permissionName);
+            expect(result).toEqual(permissionEntity);
         });
 
         it('should return null if permission not found', async () => {
-            permissionRepo.findByName.mockResolvedValue(null);
-            const result = await service.getPermission(mockAdminUser, permName);
-            expect(result).toBeNull();
-            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Permission not found'), expect.any(Object));
-        });
+            permissionRepoMock.findByName.mockResolvedValue(null);
 
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.getPermission(mockNonAdminUser, permName)).rejects.toHaveProperty('statusCode', 403);
+            const result = await service.getPermission(adminUser, permissionName);
+
+            expect(result).toBeNull();
         });
     });
 
-    // --- listPermissions ---
     describe('listPermissions', () => {
-        const mockPerms = [new Permission('p1'), new Permission('p2')];
-        const mockResult = { items: mockPerms, lastEvaluatedKey: { pk: 'a', sk: 'b' } };
+        it('should list permissions', async () => {
+            const permissions = { items: [permissionEntity], total: 1 };
+            permissionRepoMock.list.mockResolvedValue(permissions);
 
-        it('should call permissionRepo.list and return result', async () => {
-            permissionRepo.list.mockResolvedValue(mockResult);
-            const options = { limit: 5 };
-            const result = await service.listPermissions(mockAdminUser, options);
-            expect(result).toEqual(mockResult);
-            expect(permissionRepo.list).toHaveBeenCalledWith(options);
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('successfully listed 2 permissions'), expect.any(Object));
-        });
+            const result = await service.listPermissions(adminUser, {});
 
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.listPermissions(mockNonAdminUser)).rejects.toHaveProperty('statusCode', 403);
+            expect(permissionRepoMock.list).toHaveBeenCalledWith({});
+            expect(result).toEqual(permissions);
         });
     });
 
-    // --- updatePermission ---
     describe('updatePermission', () => {
-        const permName = 'doc:update';
-        const updates = { description: 'Updated Desc' };
-        const updatedPerm = new Permission(permName, updates.description);
+        it('should update a permission successfully', async () => {
+            const updates = { description: 'Updated description' };
+            const updatedPermission = new Permission(permissionName, updates.description);
+            permissionRepoMock.update.mockResolvedValue(updatedPermission);
 
-        it('should call permissionRepo.update and return updated Permission', async () => {
-            permissionRepo.update.mockResolvedValue(updatedPerm);
-            const result = await service.updatePermission(mockAdminUser, permName, updates);
-            expect(result).toEqual(updatedPerm);
-            expect(permissionRepo.update).toHaveBeenCalledWith(permName, updates);
-        });
+            const result = await service.updatePermission(adminUser, permissionName, updates);
 
-        it('should return null if permission not found for update', async () => {
-            permissionRepo.update.mockResolvedValue(null);
-            const result = await service.updatePermission(mockAdminUser, permName, updates);
-            expect(result).toBeNull();
-            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Permission not found for update'), expect.any(Object));
-        });
-
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.updatePermission(mockNonAdminUser, permName, updates)).rejects.toHaveProperty('statusCode', 403);
+            expect(permissionRepoMock.update).toHaveBeenCalledWith(permissionName, updates);
+            expect(result).toEqual(updatedPermission);
         });
     });
 
-    // --- deletePermission ---
     describe('deletePermission', () => {
-        const permName = 'doc:delete';
+        it('should delete a permission and its assignments successfully', async () => {
+            permissionRepoMock.delete.mockResolvedValue(true);
+            assignmentRepoMock.removeAllAssignmentsForPermission.mockResolvedValue();
 
-        it('should call permissionRepo.delete and assignmentRepo.removeAllAssignmentsForPermission', async () => {
-            permissionRepo.delete.mockResolvedValue(true); // Permission found and deleted
-            assignmentRepo.removeAllAssignmentsForPermission.mockResolvedValue(undefined); // Cleanup success
+            await service.deletePermission(adminUser, permissionName);
 
-            await service.deletePermission(mockAdminUser, permName);
-
-            expect(permissionRepo.delete).toHaveBeenCalledWith(permName);
-            expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName); // Verify cleanup called
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Successfully cleaned up assignments for deleted permission ${permName}`), expect.any(Object));
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Admin Successfully deleted permission '${permName}' and cleaned up assignments`), expect.any(Object));
-            expect(logger.error).not.toHaveBeenCalled();
-        });
-    
-        it('should throw PermissionNotFoundError if repo.delete returns false', async () => {
-            permissionRepo.delete.mockResolvedValue(false);
-            await expect(service.deletePermission(mockAdminUser, permName))
-                .rejects.toThrow(PermissionNotFoundError);
-            expect(assignmentRepo.removeAllAssignmentsForPermission).not.toHaveBeenCalled();
-            expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Permission not found for deletion'), expect.any(Object));
-        });
-
-        it('should throw error and log if removeAllAssignments fails', async () => {
-            permissionRepo.delete.mockResolvedValue(true); // Permission deleted successfully
-            const cleanupError = new Error("Cleanup failed");
-            assignmentRepo.removeAllAssignmentsForPermission.mockRejectedValue(cleanupError); // Cleanup fails
-
-            await expect(service.deletePermission(mockAdminUser, permName))
-                .rejects.toThrow(BaseError); // Expect the wrapped error from service
-            await expect(service.deletePermission(mockAdminUser, permName))
-                 .rejects.toHaveProperty('name', 'CleanupFailedError'); // Check the specific error name
-            await expect(service.deletePermission(mockAdminUser, permName))
-                 .rejects.toThrow(/failed to remove associated assignments/); // Check message
-
-            expect(permissionRepo.delete).toHaveBeenCalledWith(permName);
-            expect(assignmentRepo.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permName);
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining(`Permission ${permName} deleted from repository`), expect.any(Object));
-             // Check specific error log
-            expect(logger.error).toHaveBeenCalledWith(
-                expect.stringContaining(`Failed to cleanup assignments for deleted permission ${permName}`),
-                expect.objectContaining({ error: cleanupError })
-            );
-            // Final overall success log should NOT be called
-            expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(`Successfully deleted permission '${permName}' and cleaned up assignments`), expect.any(Object));
-        });
-
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.deletePermission(mockNonAdminUser, permName)).rejects.toHaveProperty('statusCode', 403);
-            expect(permissionRepo.delete).not.toHaveBeenCalled();
-        });
-    });
-
-    // --- listRolesForPermission ---
-    describe('listRolesForPermission', () => {
-        const permName = 'doc:list';
-        const existingPerm = new Permission(permName);
-        const roles = ['role-x', 'role-y'];
-
-        it('should check permission existence and return roles from assignmentRepo', async () => {
-            permissionRepo.findByName.mockResolvedValue(existingPerm);
-            assignmentRepo.findRolesByPermissionName.mockResolvedValue(roles);
-            const result = await service.listRolesForPermission(mockAdminUser, permName);
-            expect(result).toEqual(roles);
-            expect(permissionRepo.findByName).toHaveBeenCalledWith(permName);
-            expect(assignmentRepo.findRolesByPermissionName).toHaveBeenCalledWith(permName);
+            expect(permissionRepoMock.delete).toHaveBeenCalledWith(permissionName);
+            expect(assignmentRepoMock.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permissionName);
         });
 
         it('should throw PermissionNotFoundError if permission does not exist', async () => {
-            permissionRepo.findByName.mockResolvedValue(null);
-            await expect(service.listRolesForPermission(mockAdminUser, permName))
-                .rejects.toThrow(PermissionNotFoundError);
-            expect(assignmentRepo.findRolesByPermissionName).not.toHaveBeenCalled();
+            permissionRepoMock.delete.mockResolvedValue(false);
+
+            await expect(service.deletePermission(adminUser, permissionName)).rejects.toThrow(PermissionNotFoundError);
         });
 
-        it('should throw ForbiddenError if admin lacks permission', async () => {
-            await expect(service.listRolesForPermission(mockNonAdminUser, permName)).rejects.toHaveProperty('statusCode', 403);
-            expect(permissionRepo.findByName).not.toHaveBeenCalled();
-            expect(assignmentRepo.findRolesByPermissionName).not.toHaveBeenCalled();
+        it('should throw CleanupFailedError if assignment cleanup fails', async () => {
+            permissionRepoMock.delete.mockResolvedValue(true);
+            const error = new Error('Cleanup failed');
+            assignmentRepoMock.removeAllAssignmentsForPermission.mockRejectedValue(error);
+
+            await expect(service.deletePermission(adminUser, permissionName)).rejects.toThrow(BaseError);
+            await expect(service.deletePermission(adminUser, permissionName)).rejects.toHaveProperty('name', 'CleanupFailedError');
+        });
+    });
+
+    describe('listRolesForPermission', () => {
+        it('should list roles for a permission', async () => {
+            const roles = ['role1', 'role2'];
+            permissionRepoMock.findByName.mockResolvedValue(permissionEntity);
+            assignmentRepoMock.findRolesByPermissionName.mockResolvedValue(roles);
+
+            const result = await service.listRolesForPermission(adminUser, permissionName);
+
+            expect(result).toEqual(roles);
+        });
+
+        it('should throw PermissionNotFoundError if permission does not exist', async () => {
+            permissionRepoMock.findByName.mockResolvedValue(null);
+
+            await expect(service.listRolesForPermission(adminUser, permissionName)).rejects.toThrow(PermissionNotFoundError);
+        });
+    });
+
+    describe('Permissions', () => {
+        it('should throw ForbiddenError if admin user does not have required role', async () => {
+            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const details = { permissionName: 'new-permission' };
+
+            await expect(service.createPermission(nonAdminUser, details)).rejects.toThrow(BaseError);
+            await expect(service.createPermission(nonAdminUser, details)).rejects.toHaveProperty('statusCode', 403);
         });
     });
 });

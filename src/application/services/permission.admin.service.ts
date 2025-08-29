@@ -8,7 +8,7 @@ import { IAssignmentRepository } from '../interfaces/IAssignmentRepository';
 import { ILogger } from '../interfaces/ILogger';
 import { IPermissionAdminService } from '../interfaces/IPermissionAdminService';
 import { IPermissionRepository } from '../interfaces/IPermissionRepository';
-import { QueryOptions, QueryResult } from '../interfaces/IUserProfileRepository';
+import { QueryOptions, QueryResult } from '../../shared/types/query.types';
 
 @injectable()
 export class PermissionAdminService implements IPermissionAdminService {

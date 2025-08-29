@@ -3,7 +3,7 @@ import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { inject, injectable } from "tsyringe";
 import { Policy } from "../../../domain/entities/Policy";
 import { IPolicyRepository } from "../../../application/interfaces/IPolicyRepository";
-import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository";
+import { QueryOptions, QueryResult } from "../../../shared/types/query.types";
 import { ILogger } from "../../../application/interfaces/ILogger";
 import { TYPES } from "../../../shared/constants/types";
 import { BaseError } from "../../../shared/errors/BaseError";

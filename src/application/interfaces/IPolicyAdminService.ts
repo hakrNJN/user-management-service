@@ -1,6 +1,6 @@
 import { Policy } from '../../domain/entities/Policy';
 import { AdminUser } from '../../shared/types/admin-user.interface';
-import { QueryOptions, QueryResult } from './IUserProfileRepository'; // Reuse pagination types
+import { QueryOptions, QueryResult } from '../../shared/types/query.types';
 
 /**
  * Defines the contract for the Policy Administration application logic.

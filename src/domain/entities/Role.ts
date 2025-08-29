@@ -1,3 +1,5 @@
+import { BaseError } from "../../shared/errors/BaseError";
+
 /**
  * Represents an authorization Role within the system.
  * Roles group together permissions and can be assigned to Groups or Users.
@@ -33,6 +35,9 @@ export class Role {
         createdAt?: string | Date;
         updatedAt?: string | Date;
     }): Role {
+        if (!data.roleName) {
+            throw new BaseError('InvalidDataError', 500, 'Role name is missing from persistence data.', false);
+        }
         return new Role(
             data.roleName,
             data.description,

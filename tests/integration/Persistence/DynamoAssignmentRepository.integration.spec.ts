@@ -1,17 +1,15 @@
 // tests/integration/DynamoAssignmentRepository.integration.spec.ts
 import 'reflect-metadata';
 import { IAssignmentRepository } from '../../../src/application/interfaces/IAssignmentRepository';
-import { container } from '../../../src/container';
+
+import { container } from 'tsyringe';
+
 import { TYPES } from '../../../src/shared/constants/types';
-import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper';
-// Import helper to seed data if needed, or create directly in tests
-import { DeleteCommand } from '@aws-sdk/lib-dynamodb'; // For potential direct cleanup
-import { getTestDocumentClient } from '../../helpers/dynamodb.helper';
+import { createTestTable, deleteTestTable, clearTestTable, destroyDynamoDBClient, setupIntegrationTest } from '../../helpers/dynamodb.helper';
+
 
 describe('DynamoAssignmentRepository Integration Tests', () => {
     let assignmentRepository: IAssignmentRepository;
-    // Optional: Get client directly for cleanup if clearTable helper not used
-    // const docClient = getTestDocumentClient();
 
     const group1 = 'grp-editors';
     const group2 = 'grp-viewers';
@@ -23,32 +21,19 @@ describe('DynamoAssignmentRepository Integration Tests', () => {
     const user2 = 'user-bob';
 
 
-    beforeAll(() => {
-        process.env.AUTHZ_TABLE_NAME = TEST_TABLE_NAME;
+    beforeAll(async () => {
+        setupIntegrationTest(); // Setup container with test config
         assignmentRepository = container.resolve<IAssignmentRepository>(TYPES.AssignmentRepository);
+        await createTestTable(); // Create the test table
     });
 
-    // Add cleanup before/after each test
-    // Example: Delete specific items created during the test
-    afterEach(async () => {
-        // Cleanup: Delete items created in tests to avoid interference
-        // This is manual; a clearTable helper is better for complex scenarios
-        const keysToDelete = [
-            { PK: `GROUP#${group1}`, SK: `ROLE#${role1}` },
-            { PK: `GROUP#${group1}`, SK: `ROLE#${role2}` },
-            { PK: `ROLE#${role1}`, SK: `PERM#${perm1}` },
-            { PK: `ROLE#${role1}`, SK: `PERM#${perm2}` },
-            { PK: `ROLE#${role2}`, SK: `PERM#${perm2}` },
-            { PK: `USER#${user1}`, SK: `ROLE#${role1}` },
-            { PK: `USER#${user1}`, SK: `PERM#${perm1}` },
-            { PK: `USER#${user2}`, SK: `ROLE#${role2}` },
-        ];
-        const docClient = getTestDocumentClient(); // Get client for cleanup
-        for (const key of keysToDelete) {
-            try {
-                await docClient.send(new DeleteCommand({ TableName: TEST_TABLE_NAME, Key: key }));
-            } catch (e) { /* ignore if item doesn't exist */ }
-        }
+    afterAll(async () => {
+        await deleteTestTable(); // Clean up the test table
+        destroyDynamoDBClient(); // Destroy the DynamoDB client
+    });
+
+    beforeEach(async () => {
+        await clearTestTable(); // Clear table before each test
     });
 
     describe('Group <-> Role Assignments', () => {

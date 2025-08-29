@@ -1,21 +1,30 @@
 // tests/integration/DynamoPermissionRepository.integration.spec.ts
 import 'reflect-metadata';
 import { IPermissionRepository } from '../../../src/application/interfaces/IPermissionRepository';
-import { container } from '../../../src/container';
+import { container } from 'tsyringe';
 import { Permission } from '../../../src/domain/entities/Permission';
 import { TYPES } from '../../../src/shared/constants/types';
 import { BaseError } from '../../../src/shared/errors/BaseError';
-import { TEST_TABLE_NAME } from '../../helpers/dynamodb.helper';
+import { createTestTable, deleteTestTable, clearTestTable, destroyDynamoDBClient, setupIntegrationTest } from '../../helpers/dynamodb.helper';
+
 
 describe('DynamoPermissionRepository Integration Tests', () => {
     let permissionRepository: IPermissionRepository;
 
-    beforeAll(() => {
-        process.env.AUTHZ_TABLE_NAME = TEST_TABLE_NAME;
+    beforeAll(async () => {
+        setupIntegrationTest(); // Setup container with test config
         permissionRepository = container.resolve<IPermissionRepository>(TYPES.PermissionRepository);
+        await createTestTable(); // Create the test table
     });
 
-    // Add beforeEach/afterEach for item cleanup if needed
+    afterAll(async () => {
+        await deleteTestTable(); // Clean up the test table
+        destroyDynamoDBClient(); // Destroy the DynamoDB client
+    });
+
+    beforeEach(async () => {
+        await clearTestTable(); // Clear table before each test
+    });
 
     const testPerm1 = new Permission('doc:read', 'Read documents');
     const testPerm2 = new Permission('doc:write', 'Write documents');
@@ -81,7 +90,7 @@ describe('DynamoPermissionRepository Integration Tests', () => {
 
         const result = await permissionRepository.list({ limit: 5 });
         expect(result.items.length).toBeGreaterThanOrEqual(2);
-        expect(result.items.some(p => p.permissionName === testPerm1.permissionName)).toBe(true);
-        expect(result.items.some(p => p.permissionName === testPerm2.permissionName)).toBe(true);
+        expect(result.items.some((p: Permission) => p.permissionName === testPerm1.permissionName)).toBe(true);
+        expect(result.items.some((p: Permission) => p.permissionName === testPerm2.permissionName)).toBe(true);
     });
 });

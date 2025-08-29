@@ -32,10 +32,22 @@ services:
       # Optional Circuit Breaker Configuration
       # COGNITO_ADMIN_CIRCUIT_BREAKER_KEY: cognitoAdmin
     restart: unless-stopped
+    depends_on:
+      - dynamodb-local
     # networks:
     #   - my_network # Optional: Define networks if needed
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
 
 # Optional: Define networks
 # networks:
 #   my_network:
 #     driver: bridge
+volumes:
+  dynamodb-data:

@@ -1,890 +1,1004 @@
-// tests/unit/infrastructure/adapters/cognito/CognitoUserMgmtAdapter.spec.ts
 import {
     AdminAddUserToGroupCommand,
-    AdminCreateUserCommand, AdminDeleteUserCommand, AdminDisableUserCommand, AdminEnableUserCommand, AdminGetUserCommand, AdminGetUserCommandOutput, AdminListGroupsForUserCommand, AdminRemoveUserFromGroupCommand, AdminResetUserPasswordCommand, AdminSetUserPasswordCommand, // <-- Import Output type
-    AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient, CreateGroupCommand, DeleteGroupCommand, GetGroupCommand, GroupExistsException, InvalidParameterException, InvalidPasswordException,
+    AdminCreateUserCommand,
+    AdminDeleteUserCommand, // Added
+    AdminDisableUserCommand,
+    AdminEnableUserCommand,
+    AdminGetUserCommand,
+    AdminGetUserCommandOutput,
+    AdminListGroupsForUserCommand,
+    AdminRemoveUserFromGroupCommand,
+    AdminResetUserPasswordCommand,
+    AdminSetUserPasswordCommand,
+    AdminUpdateUserAttributesCommand,
+    CognitoIdentityProviderClient,
+    CreateGroupCommand,
+    GetGroupCommand,
+    GroupExistsException,
+    GroupType,
+    InternalErrorException,
+    InvalidParameterException,
+    InvalidPasswordException,
+    LimitExceededException, // Added
     ListGroupsCommand,
     ListUsersCommand,
     ListUsersInGroupCommand,
+    NotAuthorizedException,
     ResourceNotFoundException,
+    TooManyRequestsException,
+    UpdateGroupCommand,
     UsernameExistsException,
     UserNotFoundException,
-    UserStatusType,
     UserType
-} from '@aws-sdk/client-cognito-identity-provider';
-import { mockClient } from 'aws-sdk-client-mock';
-import 'aws-sdk-client-mock-jest'; // Extends Jest expect
+} from "@aws-sdk/client-cognito-identity-provider";
+import { mock, MockProxy } from 'jest-mock-extended';
 import 'reflect-metadata';
 import { IConfigService } from '../../../../../src/application/interfaces/IConfigService';
 import { ILogger } from '../../../../../src/application/interfaces/ILogger';
-import { AdminCreateUserDetails, AdminUpdateUserAttributesDetails, CreateGroupDetails, ListUsersOptions } from '../../../../../src/application/interfaces/IUserMgmtAdapter';
 import { GroupExistsError, UserNotFoundError } from '../../../../../src/domain/exceptions/UserManagementError';
 import { CognitoUserMgmtAdapter } from '../../../../../src/infrastructure/adapters/cognito/CognitoUserMgmtAdapter';
+import { applyCircuitBreaker } from '../../../../../src/infrastructure/resilience/applyResilience';
 import { BaseError, NotFoundError, ValidationError } from '../../../../../src/shared/errors/BaseError';
-import { mockConfigService } from '../../../../mocks/config.mock';
-import { mockLogger } from '../../../../mocks/logger.mock';
 
 
-// --- Mocks ---
-const cognitoMock = mockClient(CognitoIdentityProviderClient);
 
-const MOCK_USER_POOL_ID = 'us-east-1_testPoolId'; // Consistent Pool ID for tests
-const MOCK_AWS_REGION = 'us-east-1';
+// Mock the AWS SDK CognitoIdentityProviderClient
+jest.mock("@aws-sdk/client-cognito-identity-provider", () => {
+    const actualModule = jest.requireActual('@aws-sdk/client-cognito-identity-provider');
+    return {
+        ...actualModule,
+        CognitoIdentityProviderClient: jest.fn().mockImplementation(() => ({
+            send: jest.fn(),
+        })),
+        AdminCreateUserCommand: jest.fn(),
+        AdminGetUserCommand: jest.fn(),
+        AdminUpdateUserAttributesCommand: jest.fn(),
+        AdminDeleteUserCommand: jest.fn(),
+        AdminDisableUserCommand: jest.fn(),
+        AdminEnableUserCommand: jest.fn(),
+        AdminResetUserPasswordCommand: jest.fn(),
+        AdminSetUserPasswordCommand: jest.fn(),
+        AdminAddUserToGroupCommand: jest.fn(),
+        AdminRemoveUserFromGroupCommand: jest.fn(),
+        AdminListGroupsForUserCommand: jest.fn(),
+        ListUsersCommand: jest.fn(),
+        ListUsersInGroupCommand: jest.fn(),
+        CreateGroupCommand: jest.fn(),
+        UpdateGroupCommand: jest.fn(),
+        GetGroupCommand: jest.fn(),
+        ListGroupsCommand: jest.fn(),
+        // Exceptions
+        UserNotFoundException: actualModule.UserNotFoundException,
+        GroupExistsException: actualModule.GroupExistsException,
+        UsernameExistsException: actualModule.UsernameExistsException,
+        InvalidPasswordException: actualModule.InvalidPasswordException,
+        InvalidParameterException: actualModule.InvalidParameterException,
+        LimitExceededException: actualModule.LimitExceededException,
+        TooManyRequestsException: actualModule.TooManyRequestsException,
+        NotAuthorizedException: actualModule.NotAuthorizedException,
+        InternalErrorException: actualModule.InternalErrorException,
+        ResourceNotFoundException: actualModule.ResourceNotFoundException,
+    };
+});
+
+// Mock the applyCircuitBreaker function
+jest.mock('../../../../../src/infrastructure/resilience/applyResilience', () => ({
+    applyCircuitBreaker: jest.fn((fn) => fn), // By default, just return the function itself
+}));
 
 describe('CognitoUserMgmtAdapter', () => {
+    let configServiceMock: MockProxy<IConfigService>;
+    let loggerMock: MockProxy<ILogger>;
     let adapter: CognitoUserMgmtAdapter;
-    let configService: jest.Mocked<IConfigService>;
-    let logger: jest.Mocked<ILogger>;
+    let cognitoClientMock: MockProxy<CognitoIdentityProviderClient>;
+
+    const userPoolId = 'test-user-pool-id';
+    const region = 'us-east-1';
 
     beforeEach(() => {
-        cognitoMock.reset();
-        jest.clearAllMocks();
+        configServiceMock = mock<IConfigService>();
+        loggerMock = mock<ILogger>();
 
-        // Use fresh mocks
-        configService = { ...mockConfigService } as jest.Mocked<IConfigService>;
-        logger = { ...mockLogger } as jest.Mocked<ILogger>;
-
-        // --- FIX: Configure mockConfigService for THIS test suite ---
-        // Ensure getOrThrow returns the necessary values for constructor
-        configService.getOrThrow.mockImplementation((key: string): string => {
-            if (key === 'AWS_REGION') return MOCK_AWS_REGION;
-            if (key === 'COGNITO_USER_POOL_ID') return MOCK_USER_POOL_ID;
-            throw new Error(`MockConfigService: Missing mock for required key "${key}"`);
+        // Setup config service mocks
+        configServiceMock.getOrThrow.mockImplementation(<T = string>(key: string): T => {
+            if (key === 'AWS_REGION') return region as T;
+            if (key === 'COGNITO_USER_POOL_ID') return userPoolId as T;
+            throw new Error(`Missing config: ${key}`);
         });
-        // If adapter constructor *also* uses .get(), mock that too if necessary
-        configService.get.mockImplementation((key: string, defaultValue?: any): any => {
-            if (key === 'AWS_REGION') return MOCK_AWS_REGION; // For consistency if get is used elsewhere
-            // If get is used for non-essential config, provide defaults or return defaultValue
+        configServiceMock.get.mockImplementation(<T = string>(key: string, defaultValue?: T): T | undefined => {
+            if (key === 'DYNAMODB_ENDPOINT_URL') return undefined as T;
             return defaultValue;
         });
-        // --- End Fix ---
 
-
-        // Instantiate the actual adapter with the mocked dependencies
-        adapter = new CognitoUserMgmtAdapter(configService, logger);
-    });
-
-    it('should initialize correctly', () => {
-        expect(adapter).toBeDefined();
-        expect(configService.getOrThrow).toHaveBeenCalledWith('AWS_REGION');
-        expect(configService.getOrThrow).toHaveBeenCalledWith('COGNITO_USER_POOL_ID');
-        expect(logger.info).toHaveBeenCalledWith('CognitoUserMgmtAdapter initialized', expect.any(Object));
-    });
-
-    // --- Test adminCreateUser ---
-    describe('adminCreateUser', () => {
-        const createDetails: AdminCreateUserDetails = {
-            username: 'test@example.com',
-            temporaryPassword: 'Password123!',
-            userAttributes: {
-                email: 'test@example.com',
-                email_verified: 'true',
-                'custom:tenantId': 'tenant-123',
-            },
-            forceAliasCreation: true,
-            suppressWelcomeMessage: false,
-        };
-        const cognitoAttributes = [
-            { Name: 'email', Value: 'test@example.com' },
-            { Name: 'email_verified', Value: 'true' },
-            { Name: 'custom:tenantId', Value: 'tenant-123' },
-        ];
-
-        it('should create a user successfully and return UserType', async () => {
-            const mockCognitoResponse = {
-                User: {
-                    Username: 'cognito-uuid-123', // Cognito often returns sub as Username here
-                    Attributes: cognitoAttributes,
-                    UserCreateDate: new Date(),
-                    UserLastModifiedDate: new Date(),
+        // Mock AWS SDK commands
+        const mockSend = jest.fn().mockImplementation((command) => {
+            if (command instanceof AdminCreateUserCommand) {
+                return Promise.resolve({
+                    User: {
+                        Username: 'testuser',
+                        Attributes: [{ Name: 'email', Value: 'test@example.com' }],
+                        UserCreateDate: new Date(),
+                        UserStatus: 'FORCE_CHANGE_PASSWORD'
+                    },
+                    $metadata: {}
+                });
+            }
+            if (command instanceof AdminGetUserCommand) {
+                return Promise.resolve({
+                    Username: 'testuser',
+                    UserAttributes: [{ Name: 'email', Value: 'test@example.com' }],
                     Enabled: true,
-                    UserStatus: 'FORCE_CHANGE_PASSWORD',
-                } as UserType,
-            };
-            cognitoMock.on(AdminCreateUserCommand).resolves(mockCognitoResponse);
-
-            const result = await adapter.adminCreateUser(createDetails);
-
-            // Check the returned UserType object
-            expect(result).toBeDefined();
-            expect(result).toEqual(mockCognitoResponse.User);
-            expect(logger.info).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin successfully created user: ${createDetails.username}`)// Be less strict about the metadata object structure for now
-            );
-            // Verify the command was called correctly
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminCreateUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: createDetails.username,
-                TemporaryPassword: createDetails.temporaryPassword,
-                UserAttributes: cognitoAttributes,
-                MessageAction: undefined, // Because suppressWelcomeMessage is false
-                ForceAliasCreation: createDetails.forceAliasCreation,
-                DesiredDeliveryMediums: ['EMAIL'], // Derived from email attribute
-            });
+                    UserStatus: 'CONFIRMED',
+                    $metadata: {}
+                });
+            }
+            if (command instanceof AdminListGroupsForUserCommand) {
+                return Promise.resolve({
+                    Groups: [{ GroupName: 'group1' }, { GroupName: 'group2' }],
+                    NextToken: 'token',
+                    $metadata: {}
+                });
+            }
+            if (command instanceof ListUsersCommand) {
+                return Promise.resolve({
+                    Users: [
+                        { Username: 'user1', UserStatus: 'CONFIRMED' },
+                        { Username: 'user2', UserStatus: 'UNCONFIRMED' }
+                    ],
+                    PaginationToken: 'token',
+                    $metadata: {}
+                });
+            }
+            if (command instanceof ListUsersInGroupCommand) {
+                return Promise.resolve({
+                    Users: [{ Username: 'user1' }, { Username: 'user2' }],
+                    NextToken: 'token',
+                    $metadata: {}
+                });
+            }
+            if (command instanceof CreateGroupCommand) {
+                return Promise.resolve({
+                    Group: {
+                        GroupName: 'testgroup',
+                        Description: JSON.stringify({ description: 'Test description', status: 'ACTIVE' }),
+                        Precedence: 1
+                    },
+                    $metadata: {}
+                });
+            }
+            if (command instanceof GetGroupCommand) {
+                return Promise.resolve({
+                    Group: {
+                        GroupName: 'testgroup',
+                        Description: JSON.stringify({ description: 'Test description', status: 'ACTIVE' }),
+                        Precedence: 1
+                    },
+                    $metadata: {}
+                });
+            }
+            if (command instanceof ListGroupsCommand) {
+                return Promise.resolve({
+                    Groups: [
+                        {
+                            GroupName: 'group1',
+                            Description: JSON.stringify({ description: 'desc1', status: 'ACTIVE' })
+                        },
+                        {
+                            GroupName: 'group2',
+                            Description: JSON.stringify({ description: 'desc2', status: 'ACTIVE' })
+                        }
+                    ],
+                    NextToken: 'token',
+                    $metadata: {}
+                });
+            }
+            // Default empty response for void operations
+            return Promise.resolve({ $metadata: {} });
         });
 
-        it('should throw ValidationError if username exists (mapped from UsernameExistsException)', async () => {
-            const cognitoError = new UsernameExistsException({
-                message: 'User already exists',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminCreateUserCommand).rejects(cognitoError);
+        cognitoClientMock = {
+            send: mockSend
+        } as any;
 
-            await expect(adapter.adminCreateUser(createDetails))
-                .rejects
-                .toThrow(ValidationError); // Expect mapped error
-            await expect(adapter.adminCreateUser(createDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('Username already exists'));
-            expect(logger.error).toHaveBeenCalled();
-        });
+        (CognitoIdentityProviderClient as jest.Mock).mockImplementation(() => cognitoClientMock);
 
-        it('should throw ValidationError for invalid parameters (mapped from InvalidParameterException)', async () => {
-            const cognitoError = new InvalidParameterException({
-                message: 'Invalid parameter foo',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminCreateUserCommand).rejects(cognitoError);
-            const invalidDetails = { ...createDetails, username: 'invalid username' };
+        adapter = new CognitoUserMgmtAdapter(configServiceMock, loggerMock);
 
-            await expect(adapter.adminCreateUser(invalidDetails))
-                .rejects
-                .toThrow(ValidationError); // Expect mapped error
-            await expect(adapter.adminCreateUser(invalidDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('Invalid parameters. Invalid parameter foo'));
-            expect(logger.error).toHaveBeenCalled();
-        });
+        // Ensure applyCircuitBreaker returns the original function for most tests
+        (applyCircuitBreaker as jest.Mock).mockImplementation((fn) => fn);
+    });
 
-        it('should throw ValidationError for invalid password (mapped from InvalidPasswordException)', async () => {
-            const cognitoError = new InvalidPasswordException({
-                message: 'Password does not meet requirements',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminCreateUserCommand).rejects(cognitoError);
-            const invalidDetails = { ...createDetails, temporaryPassword: 'short' };
+    // --- Constructor Tests ---
+    describe('constructor', () => {
+        it('should initialize CognitoIdentityProviderClient with correct region and userPoolId', () => {
+            jest.clearAllMocks(); // Clear all mocks before the test
 
-            await expect(adapter.adminCreateUser(invalidDetails))
-                .rejects
-                .toThrow(ValidationError); // Expect mapped error
-            await expect(adapter.adminCreateUser(invalidDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('Password does not meet requirements'));
-            expect(logger.error).toHaveBeenCalled();
-        });
+            const expectedClient = { send: jest.fn() };
+            (CognitoIdentityProviderClient as jest.Mock).mockReturnValue(expectedClient);
 
-        it('should throw BaseError for generic errors during user creation', async () => {
-            const genericError = new Error('Something went wrong');
-            cognitoMock.on(AdminCreateUserCommand).rejects(genericError);
+            const adapter = new CognitoUserMgmtAdapter(configServiceMock, loggerMock);
 
-            await expect(adapter.adminCreateUser(createDetails))
-                .rejects
-                .toThrow(BaseError); // Expect mapped base error
-            await expect(adapter.adminCreateUser(createDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('adminCreateUser failed: Something went wrong'));
-            expect(logger.error).toHaveBeenCalled();
+            expect(CognitoIdentityProviderClient).toHaveBeenCalledTimes(1);
+            expect(CognitoIdentityProviderClient).toHaveBeenCalledWith({ region });
+            expect(adapter['userPoolId']).toBe(userPoolId);
+            expect(loggerMock.info).toHaveBeenCalledWith('CognitoUserMgmtAdapter initialized', { region, userPoolId });
         });
     });
 
-    // --- Test adminGetUser ---
-    describe('adminGetUser', () => {
-        const testUsername = 'test@example.com'; // Or a UUID if that's your username
-
-        it('should return UserType data if user exists', async () => {
-            // Explicitly type the mock response to match the command output
-            const mockCognitoResponse: AdminGetUserCommandOutput = {
-                Username: testUsername,
-                UserAttributes: [
-                    { Name: 'sub', Value: 'cognito-uuid-123' },
-                    { Name: 'email', Value: testUsername },
-                    { Name: 'email_verified', Value: 'true' },
-                    { Name: 'custom:tenantId', Value: 'tenant-456' },
-                ],
-                UserCreateDate: new Date(),
-                UserLastModifiedDate: new Date(),
-                Enabled: true,
-                UserStatus: UserStatusType.CONFIRMED,
-                MFAOptions: [],
-                $metadata: {}, // Add required $metadata property
-            };
-            cognitoMock.on(AdminGetUserCommand).resolves(mockCognitoResponse);
-
-            const result = await adapter.adminGetUser(testUsername);
-
-            // Check the returned UserType object (adapter extracts relevant fields)
-            // The adapter's adminGetUser returns UserType | null, not the full CommandOutput
-            expect(result).toBeDefined();
-            expect(result?.Username).toEqual(testUsername);
-            expect(result?.UserStatus).toEqual(UserStatusType.CONFIRMED);
-            expect(result?.Attributes).toEqual(mockCognitoResponse.UserAttributes);
-            expect(logger.debug).toHaveBeenCalledWith(
-                expect.stringContaining(`Admin successfully retrieved user: ${testUsername}`));
-
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminGetUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
+    // --- handleCognitoAdminError Tests ---
+    describe('handleCognitoAdminError', () => {
+        it('should map UserNotFoundException to UserNotFoundError', () => {
+            const cognitoError = new UserNotFoundException({ message: 'User not found', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(UserNotFoundError);
+            expect(mappedError.message).toContain('testOp');
         });
 
-        it('should return null if user does not exist (UserNotFoundException)', async () => {
-            const cognitoError = new UserNotFoundException({
-                message: 'User not found',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminGetUserCommand).rejects(cognitoError);
+        it('should map ResourceNotFoundException to NotFoundError', () => {
+            const cognitoError = new ResourceNotFoundException({ message: 'Resource not found', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(NotFoundError);
+            expect(mappedError.message).toContain('testOp');
+        });
 
-            const result = await adapter.adminGetUser(testUsername);
-            expect(result).toBeNull(); // Adapter handles this specific error to return null
-            expect(logger.debug).toHaveBeenCalledWith(
-                `adminGetUser - User not found: ${testUsername}`, // More specific matcmetadata is logged, otherwise remove
+        it('should map GroupExistsException to GroupExistsError', () => {
+            const cognitoError = new GroupExistsException({ message: 'Group exists', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(GroupExistsError);
+            expect(mappedError.message).toContain('testOp');
+        });
+
+        it('should map UsernameExistsException to ValidationError', () => {
+            const cognitoError = new UsernameExistsException({ message: 'Username exists', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(ValidationError);
+            expect(mappedError.message).toContain('testOp');
+        });
+
+        it('should map InvalidPasswordException to ValidationError', () => {
+            const cognitoError = new InvalidPasswordException({ message: 'Password does not meet requirements.', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(ValidationError);
+            expect(mappedError.message).toContain('Password does not meet requirements');
+        });
+
+        it('should map InvalidParameterException to ValidationError', () => {
+            const cognitoError = new InvalidParameterException({ message: 'Invalid param', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(ValidationError);
+            expect(mappedError.message).toContain('Invalid param');
+        });
+
+        it('should map LimitExceededException to BaseError (RateLimitError)', () => {
+            const cognitoError = new LimitExceededException({ message: 'Limit exceeded', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('RateLimitError');
+        });
+
+        it('should map TooManyRequestsException to BaseError (RateLimitError)', () => {
+            const cognitoError = new TooManyRequestsException({ message: 'Too many requests', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('RateLimitError');
+        });
+
+        it('should map NotAuthorizedException to BaseError (AuthorizationError)', () => {
+            const cognitoError = new NotAuthorizedException({ message: 'Not authorized', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('AuthorizationError');
+            expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('CRITICAL: Not Authorized'));
+        });
+
+        it('should map InternalErrorException to BaseError (IdPInternalError)', () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            const mappedError = adapter['handleCognitoAdminError'](cognitoError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('IdPInternalError');
+        });
+
+        it('should map OpenCircuitError to BaseError (ServiceUnavailableError)', () => {
+            const openCircuitError = new Error('OpenCircuitError'); // Opossum throws a generic Error with this name
+            openCircuitError.name = 'OpenCircuitError';
+            const mappedError = adapter['handleCognitoAdminError'](openCircuitError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('ServiceUnavailableError');
+            expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining('Circuit breaker is open'));
+        });
+
+        it('should map unknown errors to generic CognitoAdminInteractionError', () => {
+            const unknownError = new Error('Some other error');
+            const mappedError = adapter['handleCognitoAdminError'](unknownError, 'testOp');
+            expect(mappedError).toBeInstanceOf(BaseError);
+            expect(mappedError.name).toBe('CognitoAdminInteractionError');
+            expect(mappedError.message).toContain('Some other error');
+        });
+
+        it('should log the original error details', () => {
+            const testError = new Error('Original error');
+            adapter['handleCognitoAdminError'](testError, 'testOp');
+            expect(loggerMock.error).toHaveBeenCalledWith(
+                expect.stringContaining('Cognito Admin error during testOp'),
+                expect.objectContaining({
+                    errorName: testError.name,
+                    errorMessage: testError.message,
+                    stack: testError.stack,
+                })
             );
-
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminGetUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-        });
-
-        it('should throw BaseError for generic errors during get user', async () => {
-            const genericError = new Error('AWS Cognito Error');
-            cognitoMock.on(AdminGetUserCommand).rejects(genericError);
-
-            await expect(adapter.adminGetUser(testUsername))
-                .rejects
-                .toThrow(BaseError); // Expect mapped base error
-            await expect(adapter.adminGetUser(testUsername))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('adminGetUser failed: AWS Cognito Error'));
-            expect(logger.error).toHaveBeenCalled();
         });
     });
 
-    // --- Test adminUpdateUserAttributes ---
-    describe('adminUpdateUserAttributes', () => {
-        const updateDetails: AdminUpdateUserAttributesDetails = {
-            username: 'test@example.com',
-            attributesToUpdate: {
-                given_name: 'Test',
-                family_name: 'User',
-                'custom:tenantId': 'tenant-789',
-            },
+    // --- User Operations ---
+    describe('adminCreateUser', () => {
+        const userDetails = {
+            username: 'testuser',
+            temporaryPassword: 'Password123!',
+            userAttributes: { email: 'test@example.com' },
         };
-        const expectedCognitoAttributes = [
-            { Name: 'given_name', Value: 'Test' },
-            { Name: 'family_name', Value: 'User' },
-            { Name: 'custom:tenantId', Value: 'tenant-789' },
+        const cognitoUserResponse: UserType = {
+            Username: userDetails.username,
+            Attributes: [{ Name: 'email', Value: userDetails.userAttributes.email }],
+        };
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ User: cognitoUserResponse });
+        });
+
+        it('should send AdminCreateUserCommand and return UserType', async () => {
+            const result = await adapter.adminCreateUser(userDetails);
+
+            expect(AdminCreateUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminCreateUserCommand).toHaveBeenCalledWith(expect.objectContaining({
+                UserPoolId: userPoolId,
+                Username: userDetails.username,
+                TemporaryPassword: userDetails.temporaryPassword,
+                UserAttributes: [{ Name: 'email', Value: 'test@example.com' }],
+            }));
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(cognitoUserResponse);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully created user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+
+            await expect(adapter.adminCreateUser(userDetails)).rejects.toBeInstanceOf(BaseError);
+            await expect(adapter.adminCreateUser(userDetails)).rejects.toHaveProperty('name', 'IdPInternalError');
+        });
+
+        it('should apply circuit breaker', async () => {
+            jest.clearAllMocks(); // Clear all mocks before the test
+            (cognitoClientMock.send as jest.Mock).mockResolvedValueOnce({ User: cognitoUserResponse });
+
+            await adapter.adminCreateUser(userDetails);
+
+            expect(applyCircuitBreaker).toHaveBeenCalledTimes(1);
+            expect(applyCircuitBreaker).toHaveBeenCalledWith(expect.any(Function), 'cognitoAdmin', loggerMock);
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('adminGetUser', () => {
+        const username = 'testuser';
+        const cognitoUserResponse: AdminGetUserCommandOutput = {
+            Username: username,
+            UserAttributes: [{ Name: 'email', Value: 'test@example.com' }],
+            $metadata: {},
+        };
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue(cognitoUserResponse);
+        });
+
+        it('should send AdminGetUserCommand and return UserType', async () => {
+            const result = await adapter.adminGetUser(username);
+
+            expect(AdminGetUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminGetUserCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result?.Username).toBe(username);
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully retrieved user'));
+        });
+
+        it('should return null if UserNotFoundException is thrown', async () => {
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(new UserNotFoundException({ message: 'Not found', $metadata: {} }));
+            const result = await adapter.adminGetUser(username);
+            expect(result).toBeNull();
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('User not found'));
+        });
+
+        it('should throw mapped error on other failures', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminGetUser(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminUpdateUserAttributes', () => {
+        const userDetails = {
+            username: 'testuser',
+            attributesToUpdate: { email: 'new@example.com' },
+        };
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminUpdateUserAttributesCommand', async () => {
+            await adapter.adminUpdateUserAttributes(userDetails);
+
+            expect(AdminUpdateUserAttributesCommand).toHaveBeenCalledTimes(1);
+            expect(AdminUpdateUserAttributesCommand).toHaveBeenCalledWith(expect.objectContaining({
+                UserPoolId: userPoolId,
+                Username: userDetails.username,
+                UserAttributes: [{ Name: 'email', Value: 'new@example.com' }],
+            }));
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully updated attributes'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InvalidParameterException({ message: 'Invalid param', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminUpdateUserAttributes(userDetails)).rejects.toBeInstanceOf(ValidationError);
+        });
+    });
+
+    describe('adminDeleteUser', () => {
+        const username = 'testuser';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminDeleteUserCommand', async () => {
+            await adapter.adminDeleteUser(username);
+
+            expect(AdminDeleteUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminDeleteUserCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully deleted user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminDeleteUser(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminDisableUser', () => {
+        const username = 'testuser';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminDisableUserCommand', async () => {
+            await adapter.adminDisableUser(username);
+
+            expect(AdminDisableUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminDisableUserCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully disabled user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminDisableUser(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminEnableUser', () => {
+        const username = 'testuser';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminEnableUserCommand', async () => {
+            await adapter.adminEnableUser(username);
+
+            expect(AdminEnableUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminEnableUserCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully enabled user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminEnableUser(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminInitiatePasswordReset', () => {
+        const username = 'testuser';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminResetUserPasswordCommand', async () => {
+            await adapter.adminInitiatePasswordReset(username);
+
+            expect(AdminResetUserPasswordCommand).toHaveBeenCalledTimes(1);
+            expect(AdminResetUserPasswordCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully initiated password reset'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminInitiatePasswordReset(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminSetUserPassword', () => {
+        const username = 'testuser';
+        const password = 'NewPassword123!';
+        const permanent = true;
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminSetUserPasswordCommand', async () => {
+            await adapter.adminSetUserPassword(username, password, permanent);
+
+            expect(AdminSetUserPasswordCommand).toHaveBeenCalledTimes(1);
+            expect(AdminSetUserPasswordCommand).toHaveBeenCalledWith({
+                UserPoolId: userPoolId,
+                Username: username,
+                Password: password,
+                Permanent: permanent,
+            });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully set password'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminSetUserPassword(username, password, permanent)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminAddUserToGroup', () => {
+        const username = 'testuser';
+        const groupName = 'testgroup';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminAddUserToGroupCommand', async () => {
+            await adapter.adminAddUserToGroup(username, groupName);
+
+            expect(AdminAddUserToGroupCommand).toHaveBeenCalledTimes(1);
+            expect(AdminAddUserToGroupCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username, GroupName: groupName });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully added user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminAddUserToGroup(username, groupName)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminRemoveUserFromGroup', () => {
+        const username = 'testuser';
+        const groupName = 'testgroup';
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should send AdminRemoveUserFromGroupCommand', async () => {
+            await adapter.adminRemoveUserFromGroup(username, groupName);
+
+            expect(AdminRemoveUserFromGroupCommand).toHaveBeenCalledTimes(1);
+            expect(AdminRemoveUserFromGroupCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username, GroupName: groupName });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully removed user'));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminRemoveUserFromGroup(username, groupName)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminListGroupsForUser', () => {
+        const username = 'testuser';
+        const cognitoGroupsResponse: GroupType[] = [{ GroupName: 'group1' }, { GroupName: 'group2' }];
+
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ Groups: cognitoGroupsResponse, NextToken: 'token' });
+        });
+
+        it('should send AdminListGroupsForUserCommand and return groups', async () => {
+            const result = await adapter.adminListGroupsForUser(username);
+
+            expect(AdminListGroupsForUserCommand).toHaveBeenCalledTimes(1);
+            expect(AdminListGroupsForUserCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, Username: username, Limit: undefined, NextToken: undefined });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result.groups).toEqual(cognitoGroupsResponse);
+            expect(result.nextToken).toBe('token');
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully listed groups'));
+        });
+
+        it('should handle limit and nextToken', async () => {
+            await adapter.adminListGroupsForUser(username, 10, 'next-token');
+            expect(AdminListGroupsForUserCommand).toHaveBeenCalledWith(expect.objectContaining({ Limit: 10, NextToken: 'next-token' }));
+        });
+
+        it('should return empty array if no groups', async () => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ Groups: [] });
+            const result = await adapter.adminListGroupsForUser(username);
+            expect(result.groups).toEqual([]);
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminListGroupsForUser(username)).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
+    describe('adminListUsers', () => {
+        const cognitoUsersResponse: UserType[] = [
+            { Username: 'user1', UserStatus: 'CONFIRMED' },
+            { Username: 'user2', UserStatus: 'UNCONFIRMED' },
         ];
 
-        it('should update user attributes successfully (returns void)', async () => {
-            // AdminUpdateUserAttributes returns {} on success
-            cognitoMock.on(AdminUpdateUserAttributesCommand).resolves({});
-
-            await expect(adapter.adminUpdateUserAttributes(updateDetails))
-                .resolves
-                .toBeUndefined(); // Expect void on success
-
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminUpdateUserAttributesCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: updateDetails.username,
-                UserAttributes: expectedCognitoAttributes,
-            });
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Admin successfully updated attributes'));
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ Users: cognitoUsersResponse, PaginationToken: 'token' });
         });
 
-        it('should throw UserNotFoundError if user does not exist (mapped from UserNotFoundException)', async () => {
-            const cognitoError = new UserNotFoundException({
-                message: 'User not found',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminUpdateUserAttributesCommand).rejects(cognitoError);
-
-            await expect(adapter.adminUpdateUserAttributes(updateDetails))
-                .rejects
-                .toThrow(UserNotFoundError); // Expect mapped error
-            expect(logger.error).toHaveBeenCalled();
-        });
-
-        it('should throw ValidationError for invalid parameters (mapped from InvalidParameterException)', async () => {
-            const cognitoError = new InvalidParameterException({
-                message: 'Invalid attribute xyz',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminUpdateUserAttributesCommand).rejects(cognitoError);
-            const invalidDetails: AdminUpdateUserAttributesDetails = {
-                username: updateDetails.username,
-                attributesToUpdate: { 'invalid-attr!': 'test' },
-            };
-
-            await expect(adapter.adminUpdateUserAttributes(invalidDetails))
-                .rejects
-                .toThrow(ValidationError); // Expect mapped error
-            await expect(adapter.adminUpdateUserAttributes(invalidDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('Invalid parameters. Invalid attribute xyz'));
-            expect(logger.error).toHaveBeenCalled();
-        });
-
-        it('should throw BaseError for generic errors during attribute update', async () => {
-            const genericError = new Error('Update failed');
-            cognitoMock.on(AdminUpdateUserAttributesCommand).rejects(genericError);
-
-            await expect(adapter.adminUpdateUserAttributes(updateDetails))
-                .rejects
-                .toThrow(BaseError); // Expect mapped base error
-            await expect(adapter.adminUpdateUserAttributes(updateDetails))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('adminUpdateUserAttributes failed: Update failed'));
-            expect(logger.error).toHaveBeenCalled();
-        });
-    });
-
-    // --- Test adminDeleteUser ---
-    describe('adminDeleteUser', () => {
-        const testUsername = 'user-to-delete@example.com';
-
-        it('should delete user successfully (returns void)', async () => {
-            // AdminDeleteUser returns {} on success
-            cognitoMock.on(AdminDeleteUserCommand).resolves({});
-
-            await expect(adapter.adminDeleteUser(testUsername))
-                .resolves
-                .toBeUndefined(); // Expect void on success
-
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminDeleteUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Admin successfully deleted user'));
-        });
-
-        it('should throw UserNotFoundError if user does not exist (mapped from UserNotFoundException)', async () => {
-            const cognitoError = new UserNotFoundException({
-                message: 'User not found',
-                $metadata: {},
-            });
-            cognitoMock.on(AdminDeleteUserCommand).rejects(cognitoError);
-
-            await expect(adapter.adminDeleteUser(testUsername))
-                .rejects
-                .toThrow(UserNotFoundError); // Expect mapped error
-
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminDeleteUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-            expect(logger.error).toHaveBeenCalled();
-        });
-
-        it('should throw BaseError for generic errors during user deletion', async () => {
-            const genericError = new Error('Deletion failed');
-            cognitoMock.on(AdminDeleteUserCommand).rejects(genericError);
-
-            await expect(adapter.adminDeleteUser(testUsername))
-                .rejects
-                .toThrow(BaseError); // Expect mapped base error
-            await expect(adapter.adminDeleteUser(testUsername))
-                .rejects
-                .toHaveProperty('message', expect.stringContaining('adminDeleteUser failed: Deletion failed'));
-            expect(logger.error).toHaveBeenCalled();
-        });
-    });
-
-    // --- Test adminDisableUser ---
-    describe('adminDisableUser', () => {
-        const testUsername = 'user-to-disable@test.co';
-
-        it('should disable user successfully (returns void)', async () => {
-            cognitoMock.on(AdminDisableUserCommand).resolves({});
-
-            const result = await adapter.adminDisableUser(testUsername);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminDisableUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully disabled user: ${testUsername}`
-            );
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminDisableUserCommand).rejects(error);
-
-            await expect(adapter.adminDisableUser(testUsername))
-                .rejects.toThrow(UserNotFoundError);
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminDisableUserCommand, { Username: testUsername });
-        });
-
-        // Add test for other generic errors -> BaseError
-    });
-
-    // --- Test adminEnableUser ---
-    describe('adminEnableUser', () => {
-        const testUsername = 'user-to-enable@test.co';
-
-        it('should enable user successfully (returns void)', async () => {
-            cognitoMock.on(AdminEnableUserCommand).resolves({});
-
-            const result = await adapter.adminEnableUser(testUsername);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminEnableUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully enabled user: ${testUsername}`
-            );
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminEnableUserCommand).rejects(error);
-
-            await expect(adapter.adminEnableUser(testUsername))
-                .rejects.toThrow(UserNotFoundError);
-        });
-        // Add test for other generic errors -> BaseError
-    });
-
-    // --- Test adminInitiatePasswordReset ---
-    describe('adminInitiatePasswordReset', () => {
-        const testUsername = 'user-reset-pass@test.co';
-
-        it('should initiate password reset successfully (returns void)', async () => {
-            cognitoMock.on(AdminResetUserPasswordCommand).resolves({});
-
-            const result = await adapter.adminInitiatePasswordReset(testUsername);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminResetUserPasswordCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully initiated password reset for user: ${testUsername}`
-            );
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminResetUserPasswordCommand).rejects(error);
-
-            await expect(adapter.adminInitiatePasswordReset(testUsername))
-                .rejects.toThrow(UserNotFoundError);
-        });
-        // Add test for other generic errors -> BaseError
-    });
-
-    // --- Test adminSetUserPassword ---
-    describe('adminSetUserPassword', () => {
-        const testUsername = 'user-set-pass@test.co';
-        const password = 'NewPassword123!';
-
-        it('should set user password successfully (permanent=true)', async () => {
-            cognitoMock.on(AdminSetUserPasswordCommand).resolves({});
-
-            const result = await adapter.adminSetUserPassword(testUsername, password, true);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminSetUserPasswordCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-                Password: password,
-                Permanent: true,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully set password for user: ${testUsername}`
-            );
-        });
-
-        it('should set user password successfully (permanent=false)', async () => {
-            cognitoMock.on(AdminSetUserPasswordCommand).resolves({});
-            await adapter.adminSetUserPassword(testUsername, password, false);
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminSetUserPasswordCommand, { Permanent: false });
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminSetUserPasswordCommand).rejects(error);
-            await expect(adapter.adminSetUserPassword(testUsername, password, true))
-                .rejects.toThrow(UserNotFoundError);
-        });
-
-        it('should throw ValidationError for InvalidPasswordException', async () => {
-            // Mock the specific error message from Cognito
-            const cognitoErrorMessage = "Password does not conform.";
-            const error = new InvalidPasswordException({ message: cognitoErrorMessage, $metadata: {} });
-            cognitoMock.on(AdminSetUserPasswordCommand).rejects(error);
-
-            // Check it throws the correct mapped error type
-            await expect(adapter.adminSetUserPassword(testUsername, 'bad', true))
-                .rejects.toThrow(ValidationError);
-
-            // FIX: Check the actual generated message, which includes the operation and the Cognito message
-            await expect(adapter.adminSetUserPassword(testUsername, 'bad', true))
-                .rejects.toThrow(`Operation: adminSetUserPassword. ${cognitoErrorMessage}`);
-            // You could also use a regex that matches the important part:
-            // .rejects.toThrow(/Password does not conform/);
-        });
-
-        it('should throw ValidationError for InvalidParameterException', async () => {
-            const error = new InvalidParameterException({ message: "Invalid parameter.", $metadata: {} });
-            cognitoMock.on(AdminSetUserPasswordCommand).rejects(error);
-            await expect(adapter.adminSetUserPassword(testUsername, password, true))
-                .rejects.toThrow(ValidationError);
-            await expect(adapter.adminSetUserPassword(testUsername, password, true))
-                .rejects.toThrow(/Invalid parameters/);
-        });
-        // Add test for other generic errors -> BaseError
-    });
-
-    // --- Test adminAddUserToGroup ---
-    describe('adminAddUserToGroup', () => {
-        const testUsername = 'user-add-grp@test.co';
-        const testGroupName = 'group-editors';
-
-        it('should add user to group successfully (returns void)', async () => {
-            cognitoMock.on(AdminAddUserToGroupCommand).resolves({});
-
-            const result = await adapter.adminAddUserToGroup(testUsername, testGroupName);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminAddUserToGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-                GroupName: testGroupName,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully added user ${testUsername} to group ${testGroupName}`
-            );
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminAddUserToGroupCommand).rejects(error);
-            await expect(adapter.adminAddUserToGroup(testUsername, testGroupName))
-                .rejects.toThrow(UserNotFoundError);
-        });
-
-        it('should throw NotFoundError if group not found (ResourceNotFoundException)', async () => {
-            const error = new ResourceNotFoundException({ message: "Group not found.", $metadata: {} });
-            cognitoMock.on(AdminAddUserToGroupCommand).rejects(error);
-            await expect(adapter.adminAddUserToGroup(testUsername, testGroupName))
-                .rejects.toThrow(NotFoundError); // Mapped to generic NotFoundError
-            await expect(adapter.adminAddUserToGroup(testUsername, testGroupName))
-                .rejects.toThrow(/Resource \(User or Group\)/);
-        });
-
-        // Note: Cognito doesn't have a standard UserAlreadyInGroupException.
-        // This logic is usually handled in the Service layer by checking first,
-        // or by catching a generic error if the add fails due to existing membership.
-        // Test generic error case:
-        it('should throw BaseError for other errors', async () => {
-            const error = new Error("Some other cognito issue");
-            cognitoMock.on(AdminAddUserToGroupCommand).rejects(error);
-            await expect(adapter.adminAddUserToGroup(testUsername, testGroupName))
-                .rejects.toThrow(BaseError);
-        });
-    });
-
-    // --- Test adminRemoveUserFromGroup ---
-    describe('adminRemoveUserFromGroup', () => {
-        const testUsername = 'user-rem-grp@test.co';
-        const testGroupName = 'group-editors';
-
-        it('should remove user from group successfully (returns void)', async () => {
-            cognitoMock.on(AdminRemoveUserFromGroupCommand).resolves({});
-
-            const result = await adapter.adminRemoveUserFromGroup(testUsername, testGroupName);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminRemoveUserFromGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-                GroupName: testGroupName,
-            });
-            expect(logger.info).toHaveBeenCalledWith(
-                `Admin successfully removed user ${testUsername} from group ${testGroupName}`
-            );
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminRemoveUserFromGroupCommand).rejects(error);
-            await expect(adapter.adminRemoveUserFromGroup(testUsername, testGroupName))
-                .rejects.toThrow(UserNotFoundError);
-        });
-
-        it('should throw NotFoundError if group not found', async () => {
-            const error = new ResourceNotFoundException({ message: "Group not found.", $metadata: {} });
-            cognitoMock.on(AdminRemoveUserFromGroupCommand).rejects(error);
-            await expect(adapter.adminRemoveUserFromGroup(testUsername, testGroupName))
-                .rejects.toThrow(NotFoundError);
-        });
-        // Add generic BaseError test
-    });
-
-    // --- Test adminListGroupsForUser ---
-    describe('adminListGroupsForUser', () => {
-        const testUsername = 'user-list-grps@test.co';
-        const mockResponse = {
-            Groups: [
-                { GroupName: 'group1', Description: 'Desc1', Precedence: 1 },
-                { GroupName: 'group2', Description: 'Desc2', Precedence: 2 },
-            ],
-            NextToken: 'nextPageToken123',
-        };
-
-        it('should list groups for a user successfully', async () => {
-            cognitoMock.on(AdminListGroupsForUserCommand).resolves(mockResponse);
-
-            const result = await adapter.adminListGroupsForUser(testUsername, 10, 'startToken');
-
-            expect(result.groups).toHaveLength(2);
-            expect(result.groups[0].GroupName).toBe('group1');
-            expect(result.nextToken).toBe('nextPageToken123');
-            expect(cognitoMock).toHaveReceivedCommandWith(AdminListGroupsForUserCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Username: testUsername,
-                Limit: 10,
-                NextToken: 'startToken',
-            });
-            expect(logger.debug).toHaveBeenCalledWith(
-                `Admin successfully listed groups for user ${testUsername}`
-            );
-        });
-
-        it('should handle empty group list', async () => {
-            cognitoMock.on(AdminListGroupsForUserCommand).resolves({ Groups: [], NextToken: undefined });
-            const result = await adapter.adminListGroupsForUser(testUsername);
-            expect(result.groups).toHaveLength(0);
-            expect(result.nextToken).toBeUndefined();
-        });
-
-        it('should throw UserNotFoundError if user not found', async () => {
-            const error = new UserNotFoundException({ message: "User not found.", $metadata: {} });
-            cognitoMock.on(AdminListGroupsForUserCommand).rejects(error);
-            await expect(adapter.adminListGroupsForUser(testUsername))
-                .rejects.toThrow(UserNotFoundError);
-        });
-        // Add generic BaseError test
-    });
-
-    // --- Test adminListUsers ---
-    describe('adminListUsers', () => {
-        const options: ListUsersOptions = { limit: 25, paginationToken: 'token1', filter: 'email ^= "test@"' };
-        const mockResponse = {
-            Users: [
-                { Username: 'user1', Attributes: [{ Name: 'email', Value: 'test@1' }] },
-                { Username: 'user2', Attributes: [{ Name: 'email', Value: 'test@2' }] },
-            ],
-            PaginationToken: 'token2',
-        };
-
-        it('should list users successfully', async () => {
-            cognitoMock.on(ListUsersCommand).resolves(mockResponse);
-
-            const result = await adapter.adminListUsers(options);
-
-            expect(result.users).toHaveLength(2);
-            expect(result.users[0].Username).toBe('user1');
-            expect(result.paginationToken).toBe('token2');
-            expect(cognitoMock).toHaveReceivedCommandWith(ListUsersCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Limit: options.limit,
-                PaginationToken: options.paginationToken,
-                Filter: options.filter,
-            });
-            expect(logger.debug).toHaveBeenCalledWith(`Admin successfully listed users`);
-        });
-
-        it('should handle empty user list', async () => {
-            cognitoMock.on(ListUsersCommand).resolves({ Users: [], PaginationToken: undefined });
+        it('should send ListUsersCommand and return users', async () => {
             const result = await adapter.adminListUsers({});
-            expect(result.users).toHaveLength(0);
-            expect(result.paginationToken).toBeUndefined();
+
+            expect(ListUsersCommand).toHaveBeenCalledTimes(1);
+            expect(ListUsersCommand).toHaveBeenCalledWith(expect.objectContaining({
+                UserPoolId: userPoolId,
+                Limit: undefined,
+                PaginationToken: undefined,
+                Filter: undefined,
+            }));
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result.users).toEqual(cognitoUsersResponse);
+            expect(result.paginationToken).toBe('token');
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully listed users'));
         });
 
-        it('should throw BaseError for InvalidParameterException (e.g., bad filter)', async () => {
-            const error = new InvalidParameterException({ message: "Invalid filter.", $metadata: {} });
-            cognitoMock.on(ListUsersCommand).rejects(error);
-            await expect(adapter.adminListUsers(options))
-                .rejects.toThrow(ValidationError); // Mapped to ValidationError
-            await expect(adapter.adminListUsers(options))
-                .rejects.toThrow(/Invalid parameters/);
+        it('should handle limit, paginationToken, and filter', async () => {
+            await adapter.adminListUsers({ limit: 10, paginationToken: 'next', filter: 'test' });
+            expect(ListUsersCommand).toHaveBeenCalledWith(expect.objectContaining({
+                Limit: 10,
+                PaginationToken: 'next',
+                Filter: 'test',
+            }));
         });
-        // Add generic BaseError test
+
+        it('should filter users by status if provided', async () => {
+            const result = await adapter.adminListUsers({ status: 'CONFIRMED' });
+            expect(result.users).toEqual([{ Username: 'user1', UserStatus: 'CONFIRMED' }]);
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminListUsers({})).rejects.toBeInstanceOf(BaseError);
+        });
     });
 
-    // --- Test adminListUsersInGroup ---
     describe('adminListUsersInGroup', () => {
-        const testGroupName = 'group-list-users';
-        const mockResponse = {
-            Users: [
-                { Username: 'userA', Attributes: [] },
-                { Username: 'userB', Attributes: [] },
-            ],
-            NextToken: 'nextGroupToken',
-        };
+        const groupName = 'testgroup';
+        const cognitoUsersResponse: UserType[] = [{ Username: 'user1' }, { Username: 'user2' }];
 
-        it('should list users in a group successfully', async () => {
-            cognitoMock.on(ListUsersInGroupCommand).resolves(mockResponse);
-
-            const result = await adapter.adminListUsersInGroup(testGroupName, 5, 'startGroupToken');
-
-            expect(result.users).toHaveLength(2);
-            expect(result.users[0].Username).toBe('userA');
-            expect(result.nextToken).toBe('nextGroupToken');
-            expect(cognitoMock).toHaveReceivedCommandWith(ListUsersInGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                GroupName: testGroupName,
-                Limit: 5,
-                NextToken: 'startGroupToken',
-            });
-            expect(logger.debug).toHaveBeenCalledWith(`Admin successfully listed users in group ${testGroupName}`);
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ Users: cognitoUsersResponse, NextToken: 'token' });
         });
 
-        it('should throw NotFoundError if group not found', async () => {
-            const error = new ResourceNotFoundException({ message: "Group not found.", $metadata: {} });
-            cognitoMock.on(ListUsersInGroupCommand).rejects(error);
-            await expect(adapter.adminListUsersInGroup(testGroupName))
-                .rejects.toThrow(NotFoundError);
+        it('should send ListUsersInGroupCommand and return users', async () => {
+            const result = await adapter.adminListUsersInGroup(groupName);
+
+            expect(ListUsersInGroupCommand).toHaveBeenCalledTimes(1);
+            expect(ListUsersInGroupCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, GroupName: groupName, Limit: undefined, NextToken: undefined });
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result.users).toEqual(cognitoUsersResponse);
+            expect(result.nextToken).toBe('token');
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully listed users in group'));
         });
-        // Add empty list test
-        // Add generic BaseError test
+
+        it('should handle limit and nextToken', async () => {
+            await adapter.adminListUsersInGroup(groupName, 10, 'next-token');
+            expect(ListUsersInGroupCommand).toHaveBeenCalledWith(expect.objectContaining({ Limit: 10, NextToken: 'next-token' }));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminListUsersInGroup(groupName)).rejects.toBeInstanceOf(BaseError);
+        });
     });
 
-    // --- Test adminCreateGroup ---
+    // --- Group Operations ---
     describe('adminCreateGroup', () => {
-        const details: CreateGroupDetails = { groupName: 'new-group-test', description: 'A test group' };
-        const mockResponse = {
-            Group: { GroupName: details.groupName, Description: details.description, UserPoolId: MOCK_USER_POOL_ID }
+        const groupDetails = {
+            groupName: 'testgroup',
+            description: 'A test group',
+            precedence: 1,
+        };
+        const cognitoGroupResponse: GroupType = {
+            GroupName: groupDetails.groupName,
+            Description: JSON.stringify({ description: groupDetails.description, status: 'ACTIVE' }),
+            Precedence: groupDetails.precedence,
         };
 
-        it('should create group successfully', async () => {
-            cognitoMock.on(CreateGroupCommand).resolves(mockResponse);
-
-            const result = await adapter.adminCreateGroup(details);
-
-            expect(result).toEqual(mockResponse.Group);
-            expect(cognitoMock).toHaveReceivedCommandWith(CreateGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                GroupName: details.groupName,
-                Description: details.description,
-                Precedence: undefined, // Assuming not provided
-            });
-            expect(logger.info).toHaveBeenCalledWith(`Admin successfully created group: ${details.groupName}`);
+        beforeEach(() => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ Group: cognitoGroupResponse });
         });
 
-        it('should throw GroupExistsError if group already exists', async () => {
-            const error = new GroupExistsException({ message: "Group exists.", $metadata: {} });
-            cognitoMock.on(CreateGroupCommand).rejects(error);
-            await expect(adapter.adminCreateGroup(details))
-                .rejects.toThrow(GroupExistsError);
+        it('should send CreateGroupCommand and return GroupType', async () => {
+            const result = await adapter.adminCreateGroup(groupDetails);
+
+            expect(CreateGroupCommand).toHaveBeenCalledTimes(1);
+            expect(CreateGroupCommand).toHaveBeenCalledWith(expect.objectContaining({
+                UserPoolId: userPoolId,
+                GroupName: groupDetails.groupName,
+                Description: JSON.stringify({ description: groupDetails.description, status: 'ACTIVE' }),
+                Precedence: groupDetails.precedence,
+            }));
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(cognitoGroupResponse);
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully created group'));
         });
-        // Add generic BaseError test
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new GroupExistsException({ message: 'Group exists', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter.adminCreateGroup(groupDetails)).rejects.toBeInstanceOf(GroupExistsError);
+        });
     });
 
-    // --- Test adminDeleteGroup ---
     describe('adminDeleteGroup', () => {
-        const testGroupName = 'group-to-delete';
+        const groupName = 'testgroup';
 
-        it('should delete group successfully (returns void)', async () => {
-            cognitoMock.on(DeleteGroupCommand).resolves({});
-
-            const result = await adapter.adminDeleteGroup(testGroupName);
-
-            expect(result).toBeUndefined();
-            expect(cognitoMock).toHaveReceivedCommandWith(DeleteGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                GroupName: testGroupName,
-            });
-            expect(logger.info).toHaveBeenCalledWith(`Admin successfully deleted group: ${testGroupName}`);
+        beforeEach(() => {
+            // Mock adminUpdateGroupStatus internal call
+            jest.spyOn(adapter as any, 'adminUpdateGroupStatus').mockResolvedValue(undefined);
         });
 
-        it('should throw NotFoundError if group not found', async () => {
-            const error = new ResourceNotFoundException({ message: "Group not found.", $metadata: {} });
-            cognitoMock.on(DeleteGroupCommand).rejects(error);
-            await expect(adapter.adminDeleteGroup(testGroupName))
-                .rejects.toThrow(NotFoundError);
+        it('should call adminUpdateGroupStatus to deactivate the group', async () => {
+            await adapter.adminDeleteGroup(groupName);
+            expect(adapter['adminUpdateGroupStatus']).toHaveBeenCalledWith(groupName, 'INACTIVE');
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully deactivated group'));
         });
-        // Add generic BaseError test
+
+        it('should re-throw error from adminUpdateGroupStatus', async () => {
+            const testError = new Error('Update status failed');
+            jest.spyOn(adapter as any, 'adminUpdateGroupStatus').mockRejectedValue(testError);
+            await expect(adapter.adminDeleteGroup(groupName)).rejects.toThrow(testError);
+        });
     });
 
-    // --- Test adminGetGroup ---
+    describe('adminReactivateGroup', () => {
+        const groupName = 'testgroup';
+
+        beforeEach(() => {
+            // Mock adminUpdateGroupStatus internal call
+            jest.spyOn(adapter as any, 'adminUpdateGroupStatus').mockResolvedValue(undefined);
+        });
+
+        it('should call adminUpdateGroupStatus to reactivate the group', async () => {
+            await adapter.adminReactivateGroup(groupName);
+            expect(adapter['adminUpdateGroupStatus']).toHaveBeenCalledWith(groupName, 'ACTIVE');
+            expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('successfully reactivated group'));
+        });
+
+        it('should re-throw error from adminUpdateGroupStatus', async () => {
+            const testError = new Error('Update status failed');
+            jest.spyOn(adapter as any, 'adminUpdateGroupStatus').mockRejectedValue(testError);
+            await expect(adapter.adminReactivateGroup(groupName)).rejects.toThrow(testError);
+        });
+    });
+
+    describe('adminUpdateGroupStatus (private)', () => {
+        const groupName = 'testgroup';
+        const existingGroup: GroupType = {
+            GroupName: groupName,
+            Description: JSON.stringify({ description: 'Original desc', status: 'ACTIVE' }),
+            Precedence: 1,
+        };
+
+        beforeEach(() => {
+            // Mock adminGetGroup internal call
+            jest.spyOn(adapter as any, 'adminGetGroup').mockResolvedValue(existingGroup);
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({});
+        });
+
+        it('should update group status to INACTIVE', async () => {
+            await adapter['adminUpdateGroupStatus'](groupName, 'INACTIVE');
+
+            expect(UpdateGroupCommand).toHaveBeenCalledTimes(1);
+            expect(UpdateGroupCommand).toHaveBeenCalledWith(expect.objectContaining({
+                GroupName: groupName,
+                Description: JSON.stringify({ description: 'Original desc', status: 'INACTIVE' }),
+                Precedence: 1,
+            }));
+            expect(cognitoClientMock.send).toHaveBeenCalledTimes(1);
+        });
+
+        it('should update group status to ACTIVE', async () => {
+            // Simulate existing group being INACTIVE
+            jest.spyOn(adapter as any, 'adminGetGroup').mockResolvedValue({
+                ...existingGroup,
+                Description: JSON.stringify({ description: 'Original desc', status: 'INACTIVE' }),
+            });
+
+            await adapter['adminUpdateGroupStatus'](groupName, 'ACTIVE');
+
+            expect(UpdateGroupCommand).toHaveBeenCalledWith(expect.objectContaining({
+                Description: JSON.stringify({ description: 'Original desc', status: 'ACTIVE' }),
+            }));
+        });
+
+        it('should throw NotFoundError if group does not exist', async () => {
+            jest.spyOn(adapter as any, 'adminGetGroup').mockResolvedValue(null);
+            await expect(adapter['adminUpdateGroupStatus'](groupName, 'ACTIVE')).rejects.toBeInstanceOf(NotFoundError);
+        });
+
+        it('should handle non-JSON description gracefully', async () => {
+            jest.spyOn(adapter as any, 'adminGetGroup').mockResolvedValue({
+                ...existingGroup,
+                Description: 'Plain text description',
+            });
+
+            await adapter['adminUpdateGroupStatus'](groupName, 'INACTIVE');
+
+            expect(UpdateGroupCommand).toHaveBeenCalledWith(expect.objectContaining({
+                Description: JSON.stringify({ description: 'Plain text description', status: 'INACTIVE' }),
+            }));
+        });
+
+        it('should throw mapped error on failure', async () => {
+            const cognitoError = new InternalErrorException({ message: 'Internal error', $metadata: {} });
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(cognitoError);
+            await expect(adapter['adminUpdateGroupStatus'](groupName, 'ACTIVE')).rejects.toBeInstanceOf(BaseError);
+        });
+    });
+
     describe('adminGetGroup', () => {
-        const testGroupName = 'group-to-get';
-        const mockResponse = {
-            Group: { GroupName: testGroupName, Description: 'Details', UserPoolId: MOCK_USER_POOL_ID }
+        const groupName = 'testgroup';
+        const cognitoGroupResponse: GroupType = {
+            GroupName: groupName,
+            Description: JSON.stringify({
+                description: 'Test description',
+                status: 'ACTIVE'
+            })
         };
 
-        it('should get group successfully', async () => {
-            cognitoMock.on(GetGroupCommand).resolves(mockResponse);
-
-            const result = await adapter.adminGetGroup(testGroupName);
-
-            expect(result).toEqual(mockResponse.Group);
-            expect(cognitoMock).toHaveReceivedCommandWith(GetGroupCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                GroupName: testGroupName,
-            });
-            expect(logger.debug).toHaveBeenCalledWith(`Admin successfully retrieved group: ${testGroupName}`);
+        beforeEach(() => {
+            const mockSend = (command: any) => {
+                if (command instanceof GetGroupCommand) {
+                    return Promise.resolve({ Group: cognitoGroupResponse, $metadata: {} });
+                }
+                return Promise.resolve({ $metadata: {} });
+            };
+            (cognitoClientMock.send as jest.Mock).mockImplementation(mockSend);
         });
 
-        it('should return null if group not found', async () => {
-            const error = new ResourceNotFoundException({ message: "Group not found.", $metadata: {} });
-            cognitoMock.on(GetGroupCommand).rejects(error);
-            const result = await adapter.adminGetGroup(testGroupName);
+        it('should send GetGroupCommand and return GroupType', async () => {
+            const result = await adapter.adminGetGroup(groupName);
+
+            expect(GetGroupCommand).toHaveBeenCalledTimes(1);
+            expect(GetGroupCommand).toHaveBeenCalledWith({ UserPoolId: userPoolId, GroupName: groupName });
+            expect(result).toEqual(cognitoGroupResponse);
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully retrieved group'));
+        });
+
+        it('should return null if ResourceNotFoundException is thrown', async () => {
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(
+                new ResourceNotFoundException({ message: 'Not found', $metadata: {} })
+            );
+            const result = await adapter.adminGetGroup(groupName);
             expect(result).toBeNull();
-            expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining(`Group not found: ${testGroupName}`));
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('Group not found'));
         });
-        // Add generic BaseError test
+
+        it('should throw mapped error on other failures', async () => {
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(
+                new InternalErrorException({ message: 'Internal error', $metadata: {} })
+            );
+            await expect(adapter.adminGetGroup(groupName)).rejects.toBeInstanceOf(BaseError);
+            await expect(adapter.adminGetGroup(groupName)).rejects.toHaveProperty('name', 'IdPInternalError');
+        });
+
+        it('should return null if Cognito returns success but no group object', async () => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({ $metadata: {} });
+            const result = await adapter.adminGetGroup(groupName);
+            expect(result).toBeNull();
+            expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining('Cognito returned success but no group object'));
+        });
     });
 
-    // --- Test adminListGroups ---
     describe('adminListGroups', () => {
-        const mockResponse = {
-            Groups: [
-                { GroupName: 'grp1', Description: 'G1' },
-                { GroupName: 'grp2', Description: 'G2' },
-            ],
-            NextToken: 'listGroupsToken',
-        };
+        const cognitoGroupsResponse: GroupType[] = [
+            {
+                GroupName: 'group1',
+                Description: JSON.stringify({ description: 'desc1', status: 'ACTIVE' })
+            },
+            {
+                GroupName: 'group2',
+                Description: JSON.stringify({ description: 'desc2', status: 'ACTIVE' })
+            }
+        ];
 
-        it('should list groups successfully', async () => {
-            cognitoMock.on(ListGroupsCommand).resolves(mockResponse);
-
-            const result = await adapter.adminListGroups(15, 'startToken');
-
-            expect(result.groups).toHaveLength(2);
-            expect(result.groups[0].GroupName).toBe('grp1');
-            expect(result.nextToken).toBe('listGroupsToken');
-            expect(cognitoMock).toHaveReceivedCommandWith(ListGroupsCommand, {
-                UserPoolId: MOCK_USER_POOL_ID,
-                Limit: 15,
-                NextToken: 'startToken',
-            });
-            expect(logger.debug).toHaveBeenCalledWith(`Admin successfully listed groups`);
+        beforeEach(() => {
+            const mockSend = (command: any) => {
+                if (command instanceof ListGroupsCommand) {
+                    return Promise.resolve({
+                        Groups: cognitoGroupsResponse,
+                        NextToken: 'token',
+                        $metadata: {}
+                    });
+                }
+                return Promise.resolve({ $metadata: {} });
+            };
+            (cognitoClientMock.send as jest.Mock).mockImplementation(mockSend);
         });
-        // Add empty list test
-        // Add generic BaseError test
+
+        it('should send ListGroupsCommand and return groups', async () => {
+            const result = await adapter.adminListGroups();
+
+            expect(ListGroupsCommand).toHaveBeenCalledTimes(1);
+            expect(ListGroupsCommand).toHaveBeenCalledWith(expect.objectContaining({
+                UserPoolId: userPoolId,
+                Limit: undefined,
+                NextToken: undefined,
+            }));
+            expect(result.groups).toEqual(cognitoGroupsResponse);
+            expect(result.nextToken).toBe('token');
+            expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('successfully listed groups'));
+        });
+
+        it('should handle limit and nextToken', async () => {
+            await adapter.adminListGroups(10, 'next-token');
+            expect(ListGroupsCommand).toHaveBeenCalledWith(expect.objectContaining({
+                Limit: 10,
+                NextToken: 'next-token'
+            }));
+        });
+
+        it('should filter groups by name or description if filter is provided', async () => {
+            const result = await adapter.adminListGroups(undefined, undefined, 'group1');
+            expect(result.groups).toEqual([cognitoGroupsResponse[0]]);
+        });
+
+        it('should return empty array if no groups', async () => {
+            (cognitoClientMock.send as jest.Mock).mockResolvedValue({
+                Groups: [],
+                $metadata: {}
+            });
+            const result = await adapter.adminListGroups();
+            expect(result.groups).toEqual([]);
+        });
+
+        it('should throw mapped error on failure', async () => {
+            (cognitoClientMock.send as jest.Mock).mockRejectedValue(
+                new InternalErrorException({ message: 'Internal error', $metadata: {} })
+            );
+            await expect(adapter.adminListGroups()).rejects.toBeInstanceOf(BaseError);
+            await expect(adapter.adminListGroups()).rejects.toHaveProperty('name', 'IdPInternalError');
+        });
     });
-    // TODO: Add tests for other adapter methods:
-    // - adminDisableUser
-    // - adminEnableUser
-    // - adminInitiatePasswordReset
-    // - adminSetUserPassword
-    // - adminAddUserToGroup
-    // - adminRemoveUserFromGroup
-    // - adminListGroupsForUser
-    // - adminListUsers
-    // - adminListUsersInGroup
-    // - adminCreateGroup
-    // - adminDeleteGroup
-    // - adminGetGroup
-    // - adminListGroups
 });

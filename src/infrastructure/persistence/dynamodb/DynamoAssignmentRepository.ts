@@ -204,11 +204,13 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
     findCustomRolesByUserId = (userId: string) => this.queryForward('USER', userId, 'ROLE');
     assignCustomRoleToUser = (userId: string, roleName: string) => this.assign(`USER#${userId}`, `ROLE#${roleName}`, 'UserCustomRole');
     removeCustomRoleFromUser = (userId: string, roleName: string) => this.remove(`USER#${userId}`, `ROLE#${roleName}`, 'UserCustomRole');
+    findUsersByRoleName = (roleName: string) => this.queryReverse('ROLE', roleName, 'USER');
 
     // --- User <-> Custom Permission ---
     findCustomPermissionsByUserId = (userId: string) => this.queryForward('USER', userId, 'PERM');
     assignCustomPermissionToUser = (userId: string, permissionName: string) => this.assign(`USER#${userId}`, `PERM#${permissionName}`, 'UserCustomPermission');
     removeCustomPermissionFromUser = (userId: string, permissionName: string) => this.remove(`USER#${userId}`, `PERM#${permissionName}`, 'UserCustomPermission');
+    findUsersByPermissionName = (permissionName: string) => this.queryReverse('PERM', permissionName, 'USER');
 
     // --- Cleanup Implementations ---
 

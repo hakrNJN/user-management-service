@@ -9,7 +9,7 @@ import { ILogger } from '../interfaces/ILogger';
 import { IPolicyAdminService } from '../interfaces/IPolicyAdminService';
 import { IPolicyEngineAdapter } from '../interfaces/IPolicyEngineAdapter';
 import { IPolicyRepository } from '../interfaces/IPolicyRepository';
-import { QueryOptions, QueryResult } from '../interfaces/IUserProfileRepository';
+import { QueryOptions, QueryResult } from '../../shared/types/query.types';
 import { CreatePolicyAdminDto, UpdatePolicyAdminDto, ListPoliciesQueryAdminDto } from '../../api/dtos/policy.admin.dto';
 import { v4 as uuidv4 } from 'uuid'; // Assuming uuid is used for new policy ID
 

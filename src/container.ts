@@ -16,6 +16,7 @@ import { IRoleAdminService } from './application/interfaces/IRoleAdminService'; 
 import { IRoleRepository } from './application/interfaces/IRoleRepository'; // Added
 import { IUserAdminService } from './application/interfaces/IUserAdminService';
 import { IUserMgmtAdapter } from './application/interfaces/IUserMgmtAdapter';
+import { IUserProfileRepository } from './application/interfaces/IUserProfileRepository';
 
 
 // --- Import Implementations (Adapters/Services/Infrastructure) ---
@@ -34,7 +35,7 @@ import { DynamoPolicyRepository } from './infrastructure/persistence/dynamodb/Dy
 import { DynamoDBProvider } from './infrastructure/persistence/dynamodb/dynamodb.client'; // Added
 import { DynamoPermissionRepository } from './infrastructure/persistence/dynamodb/DynamoPermissionRepository'; // Added
 import { DynamoRoleRepository } from './infrastructure/persistence/dynamodb/DynamoRoleRepository'; // Added
-// import { DynamoUserProfileRepository } from './infrastructure/persistence/dynamodb/DynamoUserProfileRepository'; // Assuming this exists if profile mgmt is added later
+import { DynamoUserProfileRepository } from './infrastructure/persistence/dynamodb/DynamoUserProfileRepository'; // Assuming this exists if profile mgmt is added later
 
 // Application Services
 import { GroupAdminService } from './application/services/group.admin.service';
@@ -62,7 +63,7 @@ container.registerSingleton<IAssignmentRepository>(TYPES.AssignmentRepository, D
 container.registerSingleton<IPermissionRepository>(TYPES.PermissionRepository, DynamoPermissionRepository);
 container.registerSingleton<IRoleRepository>(TYPES.RoleRepository, DynamoRoleRepository);
 container.registerSingleton<IPolicyRepository>(TYPES.PolicyRepository, DynamoPolicyRepository); // <<< NEW
-// container.registerSingleton<IUserProfileRepository>(TYPES.UserProfileRepository, DynamoUserProfileRepository); // Example if added
+container.registerSingleton<IUserProfileRepository>(TYPES.UserProfileRepository, DynamoUserProfileRepository); // Example if added
 
 
 // --- Register Application Services (Singletons often suitable) ---

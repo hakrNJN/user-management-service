@@ -10,7 +10,7 @@ import { inject, injectable } from "tsyringe";
 import { IConfigService } from "../../../application/interfaces/IConfigService";
 import { ILogger } from "../../../application/interfaces/ILogger";
 import { IRoleRepository } from "../../../application/interfaces/IRoleRepository";
-import { QueryOptions, QueryResult } from "../../../application/interfaces/IUserProfileRepository"; // Reuse pagination types
+import { QueryOptions, QueryResult } from "../../../shared/types/query.types";
 import { Role } from "../../../domain/entities/Role";
 import { RoleExistsError } from "../../../domain/exceptions/UserManagementError"; // Import specific errors
 import { TYPES } from "../../../shared/constants/types";
@@ -32,7 +32,7 @@ interface RoleDynamoItem {
 }
 
 // Constants for GSI
-const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
+export const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
 
 @injectable()
 export class DynamoRoleRepository implements IRoleRepository {
@@ -120,7 +120,7 @@ export class DynamoRoleRepository implements IRoleRepository {
             ExclusiveStartKey: options?.startKey, // Pass opaque key directly
             ScanIndexForward: true,
         };
-        const command = new QueryCommand(commandInput); // <<< Use QueryCommand
+                const command = new QueryCommand(commandInput); // <<< Use QueryCommand
         try {
             const result = await this.client.send(command);
             const roles = result.Items?.map(item => this.mapToRole(item)) || [];
