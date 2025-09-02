@@ -11,7 +11,8 @@ export class EnvironmentConfigService implements IConfigService {
         'LOG_LEVEL',
         'AWS_REGION',
         'COGNITO_USER_POOL_ID',
-        'COGNITO_CLIENT_ID'
+        'COGNITO_CLIENT_ID',
+        'AUTHZ_TABLE_NAME' // Added
         // Add other essential keys here
     ];
 

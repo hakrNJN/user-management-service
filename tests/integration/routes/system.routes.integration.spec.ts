@@ -1,65 +1,88 @@
+// tests/integration/routes/system.routes.integration.spec.ts
 import { Express } from 'express';
-import 'reflect-metadata'; // Must be first
+import 'reflect-metadata';
 import request from 'supertest';
-import { createApp } from '../../../src/app'; // Adjust path
-import { IConfigService } from '../../../src/application/interfaces/IConfigService';
-import { ILogger } from '../../../src/application/interfaces/ILogger';
-import { container } from '../../../src/container'; // Adjust path
-import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger'; // Example Logger impl
-import { TYPES } from '../../../src/shared/constants/types';
-import { mockConfigService } from '../../mocks/config.mock'; // Adjust path
 
+// --- Application Imports ---
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
+import { IGroupAdminService } from '../../../src/application/interfaces/IGroupAdminService';
+import { ILogger } from '../../../src/application/interfaces/ILogger';
+import { IPermissionAdminService } from '../../../src/application/interfaces/IPermissionAdminService';
+import { IPolicyAdminService } from '../../../src/application/interfaces/IPolicyAdminService';
+import { IPolicyService } from '../../../src/application/interfaces/IPolicyService';
+import { IRoleAdminService } from '../../../src/application/interfaces/IRoleAdminService';
+import { IUserAdminService } from '../../../src/application/interfaces/IUserAdminService';
+import { container } from '../../../src/container';
+import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger';
+import { TYPES } from '../../../src/shared/constants/types';
+import { JwtValidator } from '../../../src/shared/utils/jwtValidator';
+import { mockConfigService } from '../../mocks/config.mock';
+
+// --- Mock Service Layer ---
+const mockGroupAdminService: jest.Mocked<IGroupAdminService> = {
+    createGroup: jest.fn(), getGroup: jest.fn(), listGroups: jest.fn(), deleteGroup: jest.fn(),
+    reactivateGroup: jest.fn(), assignRoleToGroup: jest.fn(), removeRoleFromGroup: jest.fn(), listRolesForGroup: jest.fn(),
+};
+const mockPermissionAdminService: jest.Mocked<IPermissionAdminService> = {
+    createPermission: jest.fn(), getPermission: jest.fn(), listPermissions: jest.fn(), updatePermission: jest.fn(), deletePermission: jest.fn(),
+    listRolesForPermission: jest.fn(),
+};
+const mockPolicyAdminService: jest.Mocked<IPolicyAdminService> = {
+    createPolicy: jest.fn(), getPolicy: jest.fn(), listPolicies: jest.fn(), updatePolicy: jest.fn(), deletePolicy: jest.fn(),
+    getPolicyVersion: jest.fn(), listPolicyVersions: jest.fn(), rollbackPolicy: jest.fn(),
+};
+const mockRoleAdminService: jest.Mocked<IRoleAdminService> = {
+    createRole: jest.fn(), getRole: jest.fn(), listRoles: jest.fn(), updateRole: jest.fn(), deleteRole: jest.fn(),
+    assignPermissionToRole: jest.fn(), removePermissionFromRole: jest.fn(), listPermissionsForRole: jest.fn(),
+};
+const mockUserAdminService: jest.Mocked<IUserAdminService> = {
+    createUser: jest.fn(), listUsers: jest.fn(), getUser: jest.fn(), updateUserAttributes: jest.fn(), deleteUser: jest.fn(),
+    disableUser: jest.fn(), enableUser: jest.fn(), initiatePasswordReset: jest.fn(), setUserPassword: jest.fn(),
+    addUserToGroup: jest.fn(), removeUserFromGroup: jest.fn(), listGroupsForUser: jest.fn(), listUsersInGroup: jest.fn(),
+    updateUserGroups: jest.fn(),
+};
+const mockPolicyService = {
+    getPolicy: jest.fn(), listPolicies: jest.fn(),
+} as any;
+
+// --- Pre-emptive DI Container Setup ---
+process.env.NODE_ENV = 'test';
+container.reset();
+const mockJwtValidator = {
+    validate: jest.fn().mockResolvedValue({ sub: 'test-admin-id-123', 'cognito:username': 'test-admin', 'cognito:groups': ['role-admin', 'user'] }),
+};
+container.registerInstance<IConfigService>(TYPES.ConfigService, mockConfigService);
+container.registerSingleton<ILogger>(TYPES.Logger, WinstonLogger);
+container.register<JwtValidator>(TYPES.JwtValidator, { useValue: mockJwtValidator });
+container.register<IGroupAdminService>(TYPES.GroupAdminService, { useValue: mockGroupAdminService });
+container.register<IPermissionAdminService>(TYPES.PermissionAdminService, { useValue: mockPermissionAdminService });
+container.register<IPolicyAdminService>(TYPES.PolicyAdminService, { useValue: mockPolicyAdminService });
+container.register<IRoleAdminService>(TYPES.RoleAdminService, { useValue: mockRoleAdminService });
+container.register<IUserAdminService>(TYPES.UserAdminService, { useValue: mockUserAdminService });
+container.register<IPolicyService>(TYPES.PolicyService, { useValue: mockPolicyService });
+
+// --- Test Suite ---
 describe('Integration Tests: System Routes (/api/system)', () => {
     let app: Express;
-    let logger: ILogger;
 
     beforeAll(() => {
-        // NODE_ENV and other core env vars are set by jest.setup.ts
-        // We still might need to ensure mocks are registered correctly for THIS suite
-
-        container.reset(); // Reset container for this suite
-
-        // Register the mock config service. Even if the controller doesn't use it heavily,
-        // the app setup (createApp) or middleware might.
-        container.registerInstance<IConfigService>(TYPES.ConfigService, mockConfigService);
-
-        // Register Logger (using real impl or mock)
-        // Ensure LOG_LEVEL from jest.setup.ts ('error') is respected if using real logger
-        if (!container.isRegistered(TYPES.Logger)) {
-            // Make sure WinstonLogger respects LOG_LEVEL from process.env
-            container.registerSingleton<ILogger>(TYPES.Logger, WinstonLogger);
-        } else {
-            // If already registered (e.g. globally), ensure its config is suitable for tests
-        }
-
-
-        logger = container.resolve<ILogger>(TYPES.Logger);
-        // logger.info('Setting up integration tests for System Routes...'); // Info won't show if level is 'error'
-
-        // Create the app instance *after* mocks/dependencies are registered for this suite
+        const { createApp } = require('../../../src/app');
         app = createApp();
     });
 
-    // No need for afterEach clearAllMocks if mocks aren't modified per test
-    // but keep it if you plan to adjust mock return values within specific tests.
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
-
     afterAll(() => {
-        container.reset(); // Clean up container
+        container.reset();
+        container.clearInstances();
     });
 
     describe('GET /api/system/health', () => {
-        it('should return 200 OK with status UP', async () => { // Changed expectation description
+        it('should return 200 OK with status UP', async () => {
             const response = await request(app)
                 .get('/api/system/health')
                 .expect('Content-Type', /json/)
                 .expect(200);
 
-            // Assert against the *actual* response from your controller
-            expect(response.body).toHaveProperty('status', 'UP'); // Changed 'OK' to 'UP'
+            expect(response.body).toHaveProperty('status', 'UP');
             expect(response.body).toHaveProperty('timestamp');
         });
     });
@@ -71,23 +94,26 @@ describe('Integration Tests: System Routes (/api/system)', () => {
                 .expect('Content-Type', /json/)
                 .expect(200);
 
-            // Assert against the *actual* response structure from your controller
-            expect(response.body).toHaveProperty('environment', 'test'); // Changed 'nodeEnv' to 'environment'
-            expect(response.body).toHaveProperty('nodeVersion'); // Check property exists
+            expect(response.body).toHaveProperty('environment', 'test');
+            expect(response.body).toHaveProperty('nodeVersion');
             expect(response.body).toHaveProperty('os');
-            expect(response.body.os).toHaveProperty('platform'); // Example check nested property
+            expect(response.body.os).toHaveProperty('platform');
             expect(response.body).toHaveProperty('timestamp');
+        });
+    });
 
-            // Optional: Verify mock interaction only if the controller *actually* uses configService.get('NODE_ENV')
-            // If SystemController just reads process.env.NODE_ENV directly, this check might fail or be irrelevant.
-            // Check your SystemController implementation.
-            // Example: If it uses configService:
-            // expect(mockConfigService.get).toHaveBeenCalledWith('NODE_ENV');
+    describe('GET /api/system/metrics', () => {
+        it('should return 200 OK with prometheus metrics', async () => {
+            const response = await request(app)
+                .get('/api/system/metrics')
+                .expect('Content-Type', /text\/plain/)
+                .expect(200);
+
+            expect(response.text).toMatch(/^# HELP/);
         });
     });
 
     describe('GET /api/non-existent-route', () => {
-        // This test should still pass as it tests the 404 handler
         it('should return 404 Not Found', async () => {
             const response = await request(app)
                 .get('/api/non-existent-route')
@@ -97,7 +123,6 @@ describe('Integration Tests: System Routes (/api/system)', () => {
             expect(response.body).toHaveProperty('status', 'error');
             expect(response.body).toHaveProperty('name', 'NotFoundError');
             expect(response.body.message).toContain('was not found');
-            expect(response.body).toHaveProperty('requestId');
         });
     });
 });

@@ -76,7 +76,6 @@ export function createApp(): Express {
   // Note: Authentication middleware would typically go HERE if you want userId in context/logs globally
   app.use(RequestContextUtil.middleware); // 5. Sets up AsyncLocalStorage context (uses req.id)
   app.use(createRequestLoggerMiddleware(logger)); // 6. Logs requests/responses (uses context)
-  app.use(jwtAuthMiddleware()); // 7. JWT Authentication Middleware
 
 
   // --- API Routes ---

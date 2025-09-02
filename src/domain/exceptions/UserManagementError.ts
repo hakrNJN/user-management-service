@@ -80,6 +80,13 @@ export class UserNotFoundError extends UserManagementError {
     }
 }
 
+export class UserProfileExistsError extends UserManagementError {
+    constructor(userId: string) {
+        super(`User profile with ID '${userId}' already exists.`, 409); // 409 Conflict
+        this.name = 'UserProfileExistsError';
+    }
+}
+
 export class GroupNotFoundError extends UserManagementError {
     constructor(groupName: string) {
         super(`Group '${groupName}' not found.`, 404);

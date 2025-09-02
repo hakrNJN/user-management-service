@@ -110,7 +110,7 @@ export class RoleAdminController {
             const { roleName }: RoleNameParamsDto = req.params as any;
             const { permissionName }: RolePermissionAssignDto = req.body;
             await this.roleAdminService.assignPermissionToRole(adminUser, roleName, permissionName);
-            res.status(HttpStatusCode.OK).json({ message: `Permission '${permissionName}' assigned to role '${roleName}'.` });
+            res.status(HttpStatusCode.NO_CONTENT).send();
         } catch (error) {
              this.logger.error(`[RoleAdminCtrl] Failed to assign permission ${req.body?.permissionName} to role ${req.params?.roleName}`, { adminUserId: adminUser.id, error });
              next(error);

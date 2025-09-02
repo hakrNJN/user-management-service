@@ -8,28 +8,40 @@ import { TYPES } from "../../../shared/constants/types";
 export class DynamoDBProvider {
     public readonly client: DynamoDBClient;
     public readonly documentClient: DynamoDBDocumentClient;
-    public readonly tableName: string; // Add tableName here
+    public readonly tableName: string;
 
-    constructor(@inject(TYPES.ConfigService) private configService: IConfigService) {
-        const region = this.configService.getOrThrow<string>('AWS_REGION');
-        const endpoint = this.configService.get('DYNAMODB_ENDPOINT_URL');
-        const isTest = this.configService.get('NODE_ENV') === 'test';
+    constructor(
+        @inject(TYPES.ConfigService) configService: IConfigService,
+        tableName: string, // Add tableName here
+        client?: DynamoDBClient // Optional client for testing
+    ) {
+        this.tableName = tableName;
 
-        const clientConfig: any = {
-            region,
-            endpoint: endpoint || undefined,
-            credentials: isTest ? undefined : {
-                accessKeyId: this.configService.getOrThrow('AWS_ACCESS_KEY_ID'),
-                secretAccessKey: this.configService.getOrThrow('AWS_SECRET_ACCESS_KEY'),
-            },
-        };
+        if (client) {
+            this.client = client;
+        } else {
+            const region = configService.getOrThrow<string>('AWS_REGION');
+            const endpoint = configService.get('DYNAMODB_ENDPOINT_URL');
 
-        this.client = new DynamoDBClient(clientConfig);
+            const clientConfig: any = {
+                region,
+                endpoint: endpoint || undefined,
+                credentials: {
+                    accessKeyId: 'dummy',
+                    secretAccessKey: 'dummy',
+                },
+            };
 
-        // Create a DocumentClient from the DynamoDBClient
+            // For local DynamoDB, these are often required
+            if (endpoint && (endpoint.includes('localhost') || endpoint.includes('127.0.0.1'))) {
+                clientConfig.forcePathStyle = true;
+                clientConfig.sslEnabled = false;
+            }
+
+            this.client = new DynamoDBClient(clientConfig);
+        }
+
         const translateConfig: TranslateConfig = { marshallOptions: { removeUndefinedValues: true } };
         this.documentClient = DynamoDBDocumentClient.from(this.client, translateConfig);
-
-        this.tableName = this.configService.getOrThrow('AUTHZ_TABLE_NAME'); // Get table name from config
     }
 }

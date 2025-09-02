@@ -12,6 +12,8 @@ import { IUserMgmtAdapter } from '../../src/application/interfaces/IUserMgmtAdap
 import { IUserProfileRepository } from '../../src/application/interfaces/IUserProfileRepository';
 import { mock, MockProxy } from 'jest-mock-extended';
 
+import { JwtValidator } from '../../src/shared/utils/jwtValidator';
+
 // Mock the ADAPTERS and REPOSITORIES
 export const assignmentRepositoryMock: MockProxy<IAssignmentRepository> = mock<IAssignmentRepository>();
 export const configServiceMock: MockProxy<IConfigService> = mock<IConfigService>();
@@ -22,10 +24,16 @@ export const policyRepositoryMock: MockProxy<IPolicyRepository> = mock<IPolicyRe
 export const roleRepositoryMock: MockProxy<IRoleRepository> = mock<IRoleRepository>();
 export const userMgmtAdapterMock: MockProxy<IUserMgmtAdapter> = mock<IUserMgmtAdapter>();
 export const userProfileRepositoryMock: MockProxy<IUserProfileRepository> = mock<IUserProfileRepository>();
+export const jwtValidatorMock: MockProxy<JwtValidator> = mock<JwtValidator>();
 
 // Reset mocks before each test
 beforeEach(() => {
     jest.resetAllMocks();
+    jwtValidatorMock.validate.mockResolvedValue({ 
+        sub: 'test-admin-id-123', 
+        'cognito:username': 'test-admin',
+        'cognito:groups': ['admin', 'group-admin', 'user-admin'], // Add user-admin role for e2e tests
+    });
 });
 
 // Register the mocks in the container
@@ -38,3 +46,4 @@ container.register(TYPES.PolicyRepository, { useValue: policyRepositoryMock });
 container.register(TYPES.RoleRepository, { useValue: roleRepositoryMock });
 container.register(TYPES.UserMgmtAdapter, { useValue: userMgmtAdapterMock });
 container.register(TYPES.UserProfileRepository, { useValue: userProfileRepositoryMock });
+container.register(TYPES.JwtValidator, { useValue: jwtValidatorMock });

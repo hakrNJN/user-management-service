@@ -42,7 +42,7 @@ export class DynamoPermissionRepository implements IPermissionRepository {
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
         @inject(TYPES.Logger) private logger: ILogger,
-        @inject(DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
+        @inject(TYPES.DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
     ) {
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME'); // Use same table name
         this.client = dynamoDBProvider.client;

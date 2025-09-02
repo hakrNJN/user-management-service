@@ -20,11 +20,13 @@ export interface IAssignmentRepository {
     findCustomRolesByUserId(userId: string): Promise<string[]>; // Returns role names
     assignCustomRoleToUser(userId: string, roleName: string): Promise<void>;
     removeCustomRoleFromUser(userId: string, roleName: string): Promise<void>;
+    findUsersByRoleName(roleName: string): Promise<string[]>; // Returns user IDs
 
     // --- User <-> Custom Permission ---
     findCustomPermissionsByUserId(userId: string): Promise<string[]>; // Returns permission names
     assignCustomPermissionToUser(userId: string, permissionName: string): Promise<void>;
     removeCustomPermissionFromUser(userId: string, permissionName: string): Promise<void>;
+    findUsersByPermissionName(permissionName: string): Promise<string[]>; // Returns user IDs
 
     // --- Cleanup (Optional but useful) ---
     // Remove all assignments related to a deleted user/group/role/permission

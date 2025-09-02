@@ -1,7 +1,12 @@
 
+const dotenv = require('dotenv');
+dotenv.config({ path: '.env.test', override: true });
+
 module.exports = {
   preset: 'ts-jest',
-  testEnvironment: 'node',
+      globalSetup: './tests/jest.global-setup.ts',
+    globalTeardown: './tests/jest.global-teardown.ts',
+    testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {

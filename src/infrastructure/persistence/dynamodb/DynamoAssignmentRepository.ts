@@ -19,19 +19,19 @@ import { BaseError } from "../../../shared/errors/BaseError";
 import { DynamoDBProvider } from "./dynamodb.client";
 
 // Constants for GSIs
-const GSI1_NAME = 'GSI1'; // Assumes GSI with SK as PK and PK as SK
+const GSI1_NAME = 'EntityTypeGSI';
 
 @injectable()
 export class DynamoAssignmentRepository implements IAssignmentRepository {
     private readonly tableName: string;
-    private readonly client: DynamoDBClient; 
+    private readonly client: DynamoDBClient;
 
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
         @inject(TYPES.Logger) private logger: ILogger,
-        @inject(DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
+        @inject(TYPES.DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
     ) {
-        this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
+        this.tableName = dynamoDBProvider.tableName; // Use the passed tableName
         this.client = dynamoDBProvider.client; // <<< Get base client from provider
     }
 
@@ -69,10 +69,10 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
                     result = await this.client.send(retryCommand);
                 }
             } catch (error: any) {
-                 this.logger.error(`Error during batch delete operation`, { error });
-                 // Decide strategy: continue deleting other batches or throw immediately?
-                 // Throwing ensures atomicity isn't partially violated silently.
-                 throw new BaseError('DatabaseError', 500, `Failed during batch delete: ${error.message}`);
+                this.logger.error(`Error during batch delete operation`, { error });
+                // Decide strategy: continue deleting other batches or throw immediately?
+                // Throwing ensures atomicity isn't partially violated silently.
+                throw new BaseError('DatabaseError', 500, `Failed during batch delete: ${error.message}`);
             }
         }
     }
@@ -100,40 +100,84 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
         return allItems;
     }
 
-
     // --- Generic Assignment/Removal (using base client and marshall) ---
     private async assign(pk: string, sk: string, relationshipType: string): Promise<void> {
-        const command = new PutItemCommand({ // <<< Use PutItemCommand
+        const item = {
+            PK: pk,
+            SK: sk,
+            EntityType: relationshipType,
+            AssignedAt: new Date().toISOString(),
+            // Add GSI attributes for reverse lookups
+            EntityTypeGSI_PK: sk, // GSI Hash Key
+            EntityTypeGSI_SK: pk, // GSI Range Key
+        };
+        const command = new PutItemCommand({
             TableName: this.tableName,
-            Item: marshall({ // <<< Use marshall
-                 PK: pk,
-                 SK: sk,
-                 EntityType: relationshipType,
-                 AssignedAt: new Date().toISOString()
-            }, { removeUndefinedValues: true }),
+            Item: marshall(item, { removeUndefinedValues: true }),
             // Optional: ConditionExpression to prevent duplicates if needed
         });
-        try {
-            await this.client.send(command);
-            this.logger.info(`Assigned relationship: ${pk} -> ${sk}`);
-        } catch (error: any) {
-            this.logger.error(`Error assigning relationship ${pk} -> ${sk}`, error);
-            throw new BaseError('DatabaseError', 500, `Failed to assign ${relationshipType}: ${error.message}`);
+
+        const MAX_RETRIES = 5;
+        let retries = 0;
+        let delay = 100; // Initial delay in ms
+
+        while (retries < MAX_RETRIES) {
+            try {
+                await this.client.send(command);
+                this.logger.info(`Assigned relationship: ${pk} -> ${sk}`);
+                return; // Success
+            } catch (error: any) {
+                if (error.name === 'ProvisionedThroughputExceededException' || error.name === 'ThrottlingException') {
+                    this.logger.warn(`Throughput exceeded for ${relationshipType} assignment. Retrying in ${delay}ms... (Attempt ${retries + 1}/${MAX_RETRIES})`, { error });
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; // Exponential backoff
+                    retries++;
+                } else {
+                    this.logger.error(`Error assigning relationship ${pk} -> ${sk}`, error);
+                    throw new BaseError('DatabaseError', 500, `Failed to assign ${relationshipType}:
+      ${error.message}`);
+
+                }
+            }
         }
+        // If we reach here, all retries failed
+        this.logger.error(`Failed to assign ${relationshipType} after ${MAX_RETRIES} retries due to throughput issues.`, { pk, sk, relationshipType });
+        throw new BaseError('DatabaseError', 500, `Failed to assign ${relationshipType}: Provisioned throughput exceeded after multiple retries.`);
+
     }
 
+    // private async assign(pk: string, sk: string, relationshipType: string): Promise<void> {
+    //     const command = new PutItemCommand({ // <<< Use PutItemCommand
+    //         TableName: this.tableName,
+    //         Item: marshall({ // <<< Use marshall
+    //             PK: pk,
+    //             SK: sk,
+    //             EntityType: relationshipType,
+    //             AssignedAt: new Date().toISOString()
+    //         }, { removeUndefinedValues: true }),
+    //         // Optional: ConditionExpression to prevent duplicates if needed
+    //     });
+    //     try {
+    //         await this.client.send(command);
+    //         this.logger.info(`Assigned relationship: ${pk} -> ${sk}`);
+    //     } catch (error: any) {
+    //         this.logger.error(`Error assigning relationship ${pk} -> ${sk}`, error);
+    //         throw new BaseError('DatabaseError', 500, `Failed to assign ${relationshipType}: ${error.message}`);
+    //     }
+    // }
+
     private async remove(pk: string, sk: string, relationshipType: string): Promise<void> {
-         const command = new DeleteItemCommand({ // <<< Use DeleteItemCommand
+        const command = new DeleteItemCommand({ // <<< Use DeleteItemCommand
             TableName: this.tableName,
             Key: marshall({ PK: pk, SK: sk }), // <<< Use marshall
             // Optional: ConditionExpression to ensure item exists
         });
-         try {
+        try {
             await this.client.send(command);
             this.logger.info(`Removed relationship: ${pk} -> ${sk}`);
         } catch (error: any) {
-             this.logger.error(`Error removing relationship ${pk} -> ${sk}`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to remove ${relationshipType}: ${error.message}`);
+            this.logger.error(`Error removing relationship ${pk} -> ${sk}`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to remove ${relationshipType}: ${error.message}`);
         }
     }
 
@@ -143,49 +187,56 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
         const sk = `${skPrefix}#`;
         const queryInput: QueryCommandInput = {
             TableName: this.tableName,
-            KeyConditionExpression: "PK = :pkval AND begins_with(SK, :skprefix)",
-            ExpressionAttributeValues: marshall({ // <<< Use marshall
+            KeyConditionExpression: "PK = :pkval" + (skPrefix ? " AND begins_with(SK, :skprefix)" : ""),
+            ExpressionAttributeValues: marshall({
                 ":pkval": pk,
-                ":skprefix": sk
+                ...(skPrefix && { ":skprefix": sk })
             }),
             ProjectionExpression: "SK" // Only need the SK
         };
 
         try {
-             // Use helper to handle pagination automatically
+            // Use helper to handle pagination automatically
             const results = await this.queryAllItems(queryInput);
             // Extract the value part after the prefix (e.g., 'ROLE#admin' -> 'admin')
             return results.map(item => item.SK?.S?.split('#')[1]).filter((val): val is string => !!val);
         } catch (error: any) {
-             this.logger.error(`Error querying forward relationship ${pk} -> ${sk}*`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to query ${skPrefix}s for ${pkPrefix}: ${error.message}`);
+            this.logger.error(`Error querying forward relationship ${pk} -> ${sk}*`, error);
+            throw new BaseError('DatabaseError', 500, `Failed to query ${skPrefix}s for ${pkPrefix}: ${error.message}`);
         }
     }
 
-     // --- Generic Query (Reverse Relationship using GSI) ---
-     private async queryReverse(skPrefix: string, skValue: string, pkPrefix: string): Promise<string[]> {
+    // --- Generic Query (Reverse Relationship using GSI) ---
+    private async queryReverse(skPrefix: string, skValue: string, pkPrefix: string): Promise<string[]> {
         const sk = `${skPrefix}#${skValue}`;
         const pk = `${pkPrefix}#`;
         const queryInput: QueryCommandInput = {
             TableName: this.tableName,
-            IndexName: GSI1_NAME, // Assumes GSI1 has SK as PK, PK as SK
-            KeyConditionExpression: "SK = :skval AND begins_with(PK, :pkprefix)", // Query GSI PK (original SK)
-            ExpressionAttributeValues: marshall({ // <<< Use marshall
+            IndexName: GSI1_NAME,
+            KeyConditionExpression: "EntityTypeGSI_PK = :skval AND begins_with(EntityTypeGSI_SK, :pkprefix)",
+            ExpressionAttributeValues: marshall({
                 ":skval": sk,
                 ":pkprefix": pk
             }),
-            ProjectionExpression: "PK" // Only need the original PK
+            ProjectionExpression: "PK"
+
         };
 
         try {
             // Use helper to handle pagination automatically
             const results = await this.queryAllItems(queryInput);
             // Extract the value part from the original PK
-            return results.map(item => item.PK?.S?.split('#')[1]).filter((val): val is string => !!val);
+            return results.map(item => item.PK?.S?.split('#')[1]).filter((val): val is string =>
+                !!val);
+
         } catch (error: any) {
-             this.logger.error(`Error querying reverse relationship ${sk} -> ${pk}* using GSI`, error);
-             throw new BaseError('DatabaseError', 500, `Failed to query ${pkPrefix}s for ${skPrefix}: ${error.message}`);
+            this.logger.error(`Error querying reverse relationship ${sk} -> ${pk}* using GSI`,
+                error);
+            throw new BaseError('DatabaseError', 500, `Failed to query ${pkPrefix}s for
+      ${skPrefix}: ${error.message}`);
+
         }
+
     }
 
     // --- Group <-> Role ---
@@ -232,15 +283,15 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
                 ProjectionExpression: keyProjection
             };
         } else { // Querying GSI1 by SK (used as GSI PK)
-             queryInput = {
+            queryInput = {
                 TableName: this.tableName,
                 IndexName: GSI1_NAME,
-                KeyConditionExpression: "SK = :skval" + (prefix2Filter ? " AND begins_with(PK, :pkprefix)" : ""),
+                KeyConditionExpression: "EntityTypeGSI_PK = :skval AND begins_with(EntityTypeGSI_SK, :pkprefix)",
                 ExpressionAttributeValues: marshall({
                     ":skval": `${prefix1}#${value1}`,
-                     ...(prefix2Filter && { ":pkprefix": `${prefix2Filter}#` })
+                    ...(prefix2Filter && { ":pkprefix": `${prefix2Filter}#` })
                 }),
-                 ProjectionExpression: keyProjection
+                ProjectionExpression: keyProjection
             };
         }
 
@@ -269,7 +320,7 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
 
     async removeAllAssignmentsForGroup(groupName: string): Promise<void> {
         this.logger.info(`Starting assignment cleanup for group: ${groupName}`);
-         try {
+        try {
             // Find items where PK = GROUP#{groupName} (roles assigned to this group)
             const groupAssignments = await this.findAssignments('GROUP', groupName, 'ROLE');
 
@@ -286,7 +337,7 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
 
     async removeAllAssignmentsForRole(roleName: string): Promise<void> {
         this.logger.info(`Starting assignment cleanup for role: ${roleName}`);
-         try {
+        try {
             // 1. Find permissions assigned TO this role (PK=ROLE#{roleName}, SK starts with PERM#)
             const permissionsAssigned = await this.findAssignments('ROLE', roleName, 'PERM');
 
@@ -294,7 +345,7 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
             const groupsWithRole = await this.findAssignments('ROLE', roleName, 'GROUP', true); // useGsi = true
 
             // 3. Find users this role is assigned TO (using GSI: SK=ROLE#{roleName}, PK starts with USER#)
-             const usersWithRole = await this.findAssignments('ROLE', roleName, 'USER', true); // useGsi = true
+            const usersWithRole = await this.findAssignments('ROLE', roleName, 'USER', true); // useGsi = true
 
             const allToDelete = [...permissionsAssigned, ...groupsWithRole, ...usersWithRole];
             await this.batchDeleteItems(allToDelete);
@@ -306,13 +357,13 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
     }
 
     async removeAllAssignmentsForPermission(permissionName: string): Promise<void> {
-         this.logger.info(`Starting assignment cleanup for permission: ${permissionName}`);
-         try {
-             // 1. Find roles this permission is assigned TO (using GSI: SK=PERM#{permName}, PK starts with ROLE#)
-             const rolesWithPermission = await this.findAssignments('PERM', permissionName, 'ROLE', true);
+        this.logger.info(`Starting assignment cleanup for permission: ${permissionName}`);
+        try {
+            // 1. Find roles this permission is assigned TO (using GSI: SK=PERM#{permName}, PK starts with ROLE#)
+            const rolesWithPermission = await this.findAssignments('PERM', permissionName, 'ROLE', true);
 
             // 2. Find users this permission is assigned TO (using GSI: SK=PERM#{permName}, PK starts with USER#)
-             const usersWithPermission = await this.findAssignments('PERM', permissionName, 'USER', true);
+            const usersWithPermission = await this.findAssignments('PERM', permissionName, 'USER', true);
 
             const allToDelete = [...rolesWithPermission, ...usersWithPermission];
             await this.batchDeleteItems(allToDelete);

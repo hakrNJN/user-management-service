@@ -1,30 +1,66 @@
-import 'reflect-metadata'; // Must be first
-
+import 'reflect-metadata';
 import { IPolicyRepository } from '../../../src/application/interfaces/IPolicyRepository';
 import { container } from 'tsyringe';
 import { Policy } from '../../../src/domain/entities/Policy';
 import { TYPES } from '../../../src/shared/constants/types';
-import { createTestTable, clearTestTable, deleteTestTable, destroyDynamoDBClient, setupIntegrationTest } from '../../helpers/dynamodb.helper'; // Adjust path
+import { BaseError } from '../../../src/shared/errors/BaseError';
+import { clearTestTable } from '../../helpers/dynamodb.helper';
+import { mockConfigService } from '../../mocks/config.mock';
+import { loggerMock } from '../../mocks/logger.mock';
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBProvider } from '../../../src/infrastructure/persistence/dynamodb/dynamodb.client';
+import { ScalarAttributeType, KeyType, ProjectionType } from "@aws-sdk/client-dynamodb";
+import { DynamoPolicyRepository } from '../../../src/infrastructure/persistence/dynamodb/DynamoPolicyRepository';
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
 
-// --- Test Suite ---
 describe('DynamoPolicyRepository Integration Tests', () => {
     let policyRepository: IPolicyRepository;
+    const tableName = 'TestPolicies'; // Using the same table as assignments
 
-    // --- Test Setup & Teardown ---
-    beforeAll(async () => {
-        setupIntegrationTest(); // Setup container with test config
+    // Define the schema for the Policy table
+    const policyTableKeySchema = [
+        { AttributeName: "PK", KeyType: KeyType.HASH },
+        { AttributeName: "SK", KeyType: KeyType.RANGE }
+    ];
+
+    beforeAll(() => {
+        // Register the real repository implementation in our test container
+        container.register(TYPES.PolicyRepository, {
+            useClass: DynamoPolicyRepository,
+        });
+
+        // Register mocks for dependencies
+        container.register(TYPES.ConfigService, { useValue: mockConfigService });
+        container.register(TYPES.Logger, { useValue: loggerMock });
+
+        // Register the DynamoDBClient and DynamoDBProvider
+        container.register(DynamoDBClient, {
+            useFactory: () => {
+                return new DynamoDBClient({
+                    region: "ap-south-1",
+                });
+            },
+        });
+
+        container.register(TYPES.DynamoDBProvider, {
+            useFactory: (c) => {
+                const client = c.resolve(DynamoDBClient);
+                const config = c.resolve<IConfigService>(TYPES.ConfigService);
+                // Temporarily override the AUTHZ_TABLE_NAME for this specific test
+                (config.getOrThrow as jest.Mock).mockImplementation((key: string) => {
+                    if (key === 'AUTHZ_TABLE_NAME') return tableName;
+                    // Fallback to original mock implementation for other keys
+                    return mockConfigService.getOrThrow(key);
+                });
+                return new DynamoDBProvider(config, tableName, client);
+            },
+        });
+
         policyRepository = container.resolve<IPolicyRepository>(TYPES.PolicyRepository);
-        await createTestTable(); // Create the test table
     });
 
-    afterAll(async () => {
-        await deleteTestTable(); // Clean up the test table
-        destroyDynamoDBClient(); // Destroy the DynamoDB client
-    });
-
-    // Clear table before each test to ensure a clean state
     beforeEach(async () => {
-        await clearTestTable();
+        await clearTestTable(tableName, policyTableKeySchema);
     });
 
     // Helper to create a policy (no longer needs to track for cleanup)
@@ -47,9 +83,6 @@ describe('DynamoPolicyRepository Integration Tests', () => {
             expect(found?.policyDefinition).toBe(policy.policyDefinition);
         });
 
-        // Note: The base 'save' method uses PutItem without condition checks for creation uniqueness.
-        // Uniqueness based on ID is implicit. Uniqueness on policyName relies on the GSI approach or service layer checks.
-        // Therefore, a test for PolicyExistsError on create might not apply directly to `save` unless implemented differently.
         it('should overwrite an existing policy with the same ID', async () => {
             const policy = new Policy('uuid-overwrite-1', 'policy.overwrite.1', 'def1', 'rego', 1);
             await createAndTrackPolicy(policy); // Create first
@@ -92,9 +125,9 @@ describe('DynamoPolicyRepository Integration Tests', () => {
 
     // Note: Tests for findByName rely on Scan currently. They will need adjustment
     //       if/when findByName is implemented using a GSI and Query.
-    describe('findByName (using Scan)', () => {
-        it('should find an existing policy by name using Scan', async () => {
-            const policy = new Policy('uuid-find-name-1', 'policy.find.name.scan.1', 'def', 'rego', 1);
+    describe('findByName (using GSI)', () => {
+        it('should find an existing policy by name using GSI', async () => {
+            const policy = new Policy('uuid-find-name-1', 'policy.find.name.gsi.1', 'def', 'rego', 1);
             await createAndTrackPolicy(policy);
 
             const found = await policyRepository.findByName(policy.policyName);
@@ -103,14 +136,14 @@ describe('DynamoPolicyRepository Integration Tests', () => {
             expect(found?.policyName).toBe(policy.policyName);
         });
 
-         it('should return null when finding a non-existent policy name using Scan', async () => {
-            const found = await policyRepository.findByName('policy.nonexistent.scan');
+         it('should return null when finding a non-existent policy name using GSI', async () => {
+            const found = await policyRepository.findByName('policy.nonexistent.gsi');
             expect(found).toBeNull();
         });
 
         // This test might be flaky depending on scan consistency
-        it('should return only one policy if multiple have the same name (Scan behavior)', async () => {
-            const name = 'policy.find.name.scan.duplicate';
+        it('should return only one policy if multiple have the same name (GSI behavior)', async () => {
+            const name = 'policy.find.name.gsi.duplicate';
             const policy1 = new Policy('uuid-find-name-dup1', name, 'def1', 'rego', 1);
             const policy2 = new Policy('uuid-find-name-dup2', name, 'def2', 'rego', 1);
             await createAndTrackPolicy(policy1);
@@ -125,11 +158,11 @@ describe('DynamoPolicyRepository Integration Tests', () => {
 
      // Note: Tests for list rely on Scan currently. They will need adjustment
     //       if/when list is implemented using a GSI and Query.
-    describe('list (using Scan)', () => {
+    describe('list (using GSI)', () => {
         it('should list created policies', async () => {
-            const policy1 = new Policy('uuid-list-1', 'policy.list.scan.1', 'def', 'rego', 1);
-            const policy2 = new Policy('uuid-list-2', 'policy.list.scan.2', 'def', 'cedar', 1);
-            const policy3 = new Policy('uuid-list-3', 'policy.list.scan.3', 'def', 'rego', 1);
+            const policy1 = new Policy('uuid-list-1', 'policy.list.gsi.1', 'def', 'rego', 1);
+            const policy2 = new Policy('uuid-list-2', 'policy.list.gsi.2', 'def', 'cedar', 1);
+            const policy3 = new Policy('uuid-list-3', 'policy.list.gsi.3', 'def', 'rego', 1);
             await createAndTrackPolicy(policy1);
             await createAndTrackPolicy(policy2);
             await createAndTrackPolicy(policy3);
@@ -153,7 +186,7 @@ describe('DynamoPolicyRepository Integration Tests', () => {
             expect(result.items[0].policyLanguage).toBe('rego');
         });
 
-        it('should handle pagination with Scan (limit and startKey)', async () => {
+        it('should handle pagination with GSI (limit and startKey)', async () => {
              const policy1 = new Policy('uuid-list-page-1', 'policy.list.page.1', 'def', 'rego', 1);
              const policy2 = new Policy('uuid-list-page-2', 'policy.list.page.2', 'def', 'rego', 1);
              await createAndTrackPolicy(policy1);

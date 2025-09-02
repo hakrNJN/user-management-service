@@ -13,6 +13,57 @@ jest.mock('../../../src/infrastructure/logging/WinstonLogger', () => {
     };
 });
 
+// Global mock for EnvironmentConfigService
+jest.mock('../../../src/infrastructure/config/EnvironmentConfigService', () => {
+    return {
+        EnvironmentConfigService: jest.fn().mockImplementation(() => {
+            return {
+                get: jest.fn((key: string, defaultValue?: any) => {
+                    switch (key) {
+                        case 'NODE_ENV': return 'test';
+                        case 'CORS_ORIGIN': return '*';
+                        case 'DYNAMODB_ENDPOINT_URL': return process.env.DYNAMODB_ENDPOINT_URL || "http://localhost:8000";
+                        case 'AWS_REGION': return "us-east-1";
+                        case 'AUTHZ_TABLE_NAME': return 'TestUsers';
+                        case 'AWS_ACCESS_KEY_ID': return 'test';
+                        case 'AWS_SECRET_ACCESS_KEY': return 'test';
+                        case 'COGNITO_USER_POOL_ID': return 'test-user-pool-id';
+                        case 'COGNITO_CLIENT_ID': return 'test-client-id';
+                        case 'PORT': return '3000';
+                        case 'LOG_LEVEL': return 'info';
+                        default: return defaultValue;
+                    }
+                }),
+                getOrThrow: jest.fn((key: string) => {
+                    switch (key) {
+                        case 'AUTHZ_TABLE_NAME': return 'TestUsers';
+                        case 'AWS_REGION': return 'us-east-1';
+                        case 'COGNITO_USER_POOL_ID': return 'test-user-pool-id';
+                        case 'COGNITO_CLIENT_ID': return 'test-client-id';
+                        case 'NODE_ENV': return 'test';
+                        case 'PORT': return '3000';
+                        case 'LOG_LEVEL': return 'info';
+                        case 'AWS_ACCESS_KEY_ID': return 'test';
+                        case 'AWS_SECRET_ACCESS_KEY': return 'test';
+                        case 'DYNAMODB_ENDPOINT_URL': return 'http://localhost:8000';
+                        default: throw new Error(`Config key ${key} not mocked and has no default.`);
+                    }
+                }),
+                getNumber: jest.fn(),
+                getNumberOrThrow: jest.fn(),
+                getBoolean: jest.fn(),
+                getBooleanOrThrow: jest.fn(),
+                getAllConfig: jest.fn(),
+                has: jest.fn(),
+                reloadConfig: jest.fn(),
+                isDevelopment: jest.fn(),
+                isProduction: jest.fn(),
+                isTest: jest.fn(),
+            };
+        }),
+    };
+});
+
 // --- Core Imports ---
 import { Express } from 'express';
 import 'reflect-metadata';
@@ -65,7 +116,9 @@ import { UserNotFoundError } from '../../../src/domain/exceptions/UserManagement
 import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger';
 import { TYPES } from '../../../src/shared/constants/types';
 import { BaseError, NotFoundError } from '../../../src/shared/errors/BaseError';
+import { JwtValidator } from '../../../src/shared/utils/jwtValidator';
 import { mockConfigService } from '../../mocks/config.mock';
+import { mockJwtValidator } from '../../mocks/jwtValidator.mock';
 // Import other schemas if needed for payload definitions
 // import { UpdateUserAttributesAdminSchema } from '../../src/api/dtos/update-user-attributes.admin.dto';
 // import { AddUserToGroupAdminSchema } from '../../src/api/dtos/add-user-to-group.admin.dto';
@@ -123,6 +176,24 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
 
         // Register mocks for dependencies EXCEPT the service (handled by jest.mock)
         container.registerInstance<IConfigService>(TYPES.ConfigService, mockConfigService);
+        // Register mock ILogger
+        container.registerInstance<ILogger>(TYPES.Logger, new WinstonLogger(mockConfigService)); // Use the mocked WinstonLogger
+        // Register mock JwtValidator
+        container.registerInstance<JwtValidator>(TYPES.JwtValidator, mockJwtValidator);
+
+        // Configure the mockJwtValidator instance
+        (mockJwtValidator.validate as jest.Mock).mockImplementation((token: string) => {
+            if (token === TEST_ADMIN_TOKEN.replace('Bearer ', '')) { // Remove 'Bearer ' prefix for validation
+                return {
+                    sub: 'admin-user-id',
+                    'cognito:groups': ['admin', 'user-admin'],
+                    username: 'adminuser',
+                    email: 'admin@example.com'
+                };
+            }
+            throw new Error('Invalid token');
+        });
+
         // Service is mocked via jest.mock at top level
         logger = container.resolve<ILogger>(TYPES.Logger);
         app = createApp();
@@ -366,48 +437,48 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
         });
     });
 
-    // --- POST Disable User ---
-    describe('POST /api/admin/users/:username/disable', () => {
-        const targetUsername = 'disable.user.integ@test.com';
+    // --- DELETE User (Permanent Delete) ---
+    describe('DELETE /api/admin/users/:username (Permanent Delete)', () => {
+        const targetUsername = 'delete.user.integ@test.com'; // Changed username to reflect permanent delete
 
-        it('should return 200 OK on successful disable', async () => {
-            mockUserAdminService.disableUser.mockResolvedValueOnce(undefined);
+        it('should return 204 No Content if service succeeds', async () => {
+            mockUserAdminService.deleteUser.mockResolvedValueOnce(undefined); // Now calls deleteUser
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/disable`)
+                .delete(`/api/admin/users/${targetUsername}`)
                 .set(MOCK_AUTH_HEADER)
-                .expect(HttpStatusCode.OK); // 200
-            expect(mockUserAdminService.disableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
+                .expect(HttpStatusCode.NO_CONTENT); // 204
+            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
         });
 
         it('should return 404 Not Found if service throws UserNotFoundError', async () => {
             const notFoundError = new UserNotFoundError(`User ${targetUsername}`);
-            mockUserAdminService.disableUser.mockRejectedValueOnce(notFoundError);
+            mockUserAdminService.deleteUser.mockRejectedValueOnce(notFoundError);
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/disable`)
+                .delete(`/api/admin/users/${targetUsername}`)
                 .set(MOCK_AUTH_HEADER)
                 .expect(HttpStatusCode.NOT_FOUND); // 404
-            expect(mockUserAdminService.disableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
+            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
         });
 
         it('should return 500 if service fails unexpectedly', async () => {
-            const genericError = new Error('Disable failed');
-            mockUserAdminService.disableUser.mockRejectedValueOnce(genericError);
+            const genericError = new Error('Delete failed');
+            mockUserAdminService.deleteUser.mockRejectedValueOnce(genericError);
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/disable`)
+                .delete(`/api/admin/users/${targetUsername}`)
                 .set(MOCK_AUTH_HEADER)
                 .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
-            expect(mockUserAdminService.disableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
+            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
         });
     });
 
-    // --- POST Enable User ---
-    describe('POST /api/admin/users/:username/enable', () => {
+    // --- PUT Reactivate User (Enable) ---
+    describe('PUT /api/admin/users/:username/reactivate (Enable)', () => {
         const targetUsername = 'enable.user.integ@test.com';
 
         it('should return 200 OK on successful enable', async () => {
             mockUserAdminService.enableUser.mockResolvedValueOnce(undefined);
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/enable`)
+                .put(`/api/admin/users/${targetUsername}/reactivate`) // Changed method and URL
                 .set(MOCK_AUTH_HEADER)
                 .expect(HttpStatusCode.OK); // 200
             expect(mockUserAdminService.enableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
@@ -417,7 +488,7 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
             const notFoundError = new UserNotFoundError(`User ${targetUsername}`);
             mockUserAdminService.enableUser.mockRejectedValueOnce(notFoundError);
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/enable`)
+                .put(`/api/admin/users/${targetUsername}/reactivate`) // Changed method and URL
                 .set(MOCK_AUTH_HEADER)
                 .expect(HttpStatusCode.NOT_FOUND); // 404
             expect(mockUserAdminService.enableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
@@ -427,7 +498,7 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
             const genericError = new Error('Enable failed');
             mockUserAdminService.enableUser.mockRejectedValueOnce(genericError);
             await request(app)
-                .post(`/api/admin/users/${targetUsername}/enable`)
+                .put(`/api/admin/users/${targetUsername}/reactivate`) // Changed method and URL
                 .set(MOCK_AUTH_HEADER)
                 .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
             expect(mockUserAdminService.enableUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
@@ -598,48 +669,65 @@ describe('Integration Tests: User Admin Routes (/api/admin/users)', () => {
                     .set(MOCK_AUTH_HEADER)
                     .expect(HttpStatusCode.NOT_FOUND); // 404
                 expect(mockUserAdminService.removeUserFromGroup).toHaveBeenCalledTimes(1);
+
+
             });
             // Add test for generic 500 error
-        });
-    });
 
-    // --- DELETE User ---
-    // Note: This should ideally be the last test for a given user if relying on state
-    describe('DELETE /api/admin/users/:username', () => {
-        const targetUsername = 'delete.user.integ@test.com';
 
-        // Consider creating a user specifically for deletion in a 'beforeAll' for this block
-        // to avoid conflicts with other tests if they run in parallel or are reordered.
-        // For now, we assume a user exists (or mock service appropriately)
-
-        it('should return 204 No Content if service succeeds', async () => {
-            mockUserAdminService.deleteUser.mockResolvedValueOnce(undefined);
-            await request(app)
-                .delete(`/api/admin/users/${targetUsername}`)
-                .set(MOCK_AUTH_HEADER)
-                .expect(HttpStatusCode.NO_CONTENT); // 204
-            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
         });
 
-        it('should return 404 Not Found if service throws UserNotFoundError', async () => {
-            const notFoundError = new UserNotFoundError(`User ${targetUsername}`);
-            mockUserAdminService.deleteUser.mockRejectedValueOnce(notFoundError);
-            await request(app)
-                .delete(`/api/admin/users/${targetUsername}`)
-                .set(MOCK_AUTH_HEADER)
-                .expect(HttpStatusCode.NOT_FOUND); // 404
-            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
+        // --- DELETE User ---
+        // Note: This should ideally be the last test for a given user if relying on state
+        describe('DELETE /api/admin/users/:username', () => {
+            const targetUsername = 'delete.user.integ@test.com';
+
+            // Consider creating a user specifically for deletion in a 'beforeAll' for this block
+            // to avoid conflicts with other tests if they run in parallel or are reordered.
+            // For now, we assume a user exists (or mock service appropriately)
+
+            it('should return 204 No Content if service succeeds', async () => {
+                mockUserAdminService.deleteUser.mockResolvedValueOnce(undefined);
+                await request(app)
+                    .delete(`/api/admin/users/${targetUsername}`)
+                    .set(MOCK_AUTH_HEADER)
+                    .expect(HttpStatusCode.NO_CONTENT); // 204
+                expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(),
+                    targetUsername);
+
+
+            });
+
+            it('should return 404 Not Found if service throws UserNotFoundError', async () => {
+                const notFoundError = new UserNotFoundError(`User ${targetUsername}`);
+                mockUserAdminService.deleteUser.mockRejectedValueOnce(notFoundError);
+                await request(app)
+                    .delete(`/api/admin/users/${targetUsername}`)
+                    .set(MOCK_AUTH_HEADER)
+                    .expect(HttpStatusCode.NOT_FOUND); // 404
+                expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(),
+                    targetUsername);
+
+
+            });
+
+            it('should return 500 if service fails unexpectedly', async () => {
+                const genericError = new Error('Delete failed');
+                mockUserAdminService.deleteUser.mockRejectedValueOnce(genericError);
+                await request(app)
+                    .delete(`/api/admin/users/${targetUsername}`)
+                    .set(MOCK_AUTH_HEADER)
+                    .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
+                expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(),
+                    targetUsername);
+
+
+            });
+
+
         });
 
-        it('should return 500 if service fails unexpectedly', async () => {
-            const genericError = new Error('Delete failed');
-            mockUserAdminService.deleteUser.mockRejectedValueOnce(genericError);
-            await request(app)
-                .delete(`/api/admin/users/${targetUsername}`)
-                .set(MOCK_AUTH_HEADER)
-                .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
-            expect(mockUserAdminService.deleteUser).toHaveBeenCalledWith(expect.anything(), targetUsername);
-        });
+
     });
 
 }); // End Test Suite

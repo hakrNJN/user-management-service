@@ -1,49 +1,50 @@
-## Cross-Service Review Context: Authentication, Account & User Management Services
+Your role is to act like a senior test writer working in google and help me to fix and pass tests, 
 
-This document provides a synthesized context and architectural blueprint based on the review of the `authentication-service`, `account-management-service`, and `user-management-service`. It should be used to guide the review of subsequent microservices within the same ecosystem to ensure consistency, quality, and adherence to established patterns.
+your task is to pass the test @tests/integration/persistence
+
+2 of total 5 is passed, @tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts and @tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts
+is passed, rest three  @tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts, @tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts and 
+@tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts are failing, 
+
+you goal is to pick one by one failed test suits, fix and pass them
+
+tech stack - Project is using Typescript and DI (Tsyring) and using layered architecture and using pnpm for test and package management, 
+if required read the whole folder structure and design patterns
+
+here is the context
+
+Fix integration tests for the user-management-service project, specifically focusing on the role.admin.routes.integration.spec.ts file, following an alphabetical and incremental test addition strategy.
+
+Key Knowledge:
+- The project uses NodeJS, Jest, and Supertest for testing.
+- The testing strategy involves incremental test addition and fixing.
+- The `policy.admin.routes.integration.spec.ts` test suite is complete and all tests are passing.
+- The current focus is on `role.admin.routes.integration.spec.ts`.
+- Initial failures in `role.admin.routes.integration.spec.ts` were due to missing environment variables (`AUTHZ_TABLE_NAME`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`) and dependency injection issues.
+- Global `jest.mock` has been implemented for `EnvironmentConfigService` and `JwtValidator` to address DI issues.
+- `tests/mocks/config.mock.ts` has been updated to provide mock values for required Cognito and DynamoDB environment variables.
+- Recent attempts to fix the test file introduced syntax errors and issues with the `app` variable being unassigned due to incorrect `replace` operations.
+
+File System State:
+- CWD: `E:\NodeJS\PBAC_Auth\user-management-service`
+- MODIFIED: `tests\integration\routes\role.admin.routes.integration.spec.ts` - Undergoing active modifications to fix syntax, mocking, and test failures.
+- MODIFIED: `src\api\routes\policy.admin.routes.ts` - Modified to adjust the `rollback` route definition.
+- MODIFIED: `tests\mocks\config.mock.ts` - Updated to include mocks for `COGNITO_USER_POOL_ID` and `COGNITO_CLIENT_ID`.
+- DELETED: `tests\integration\routes\policy.admin.routes.integration.spec.ts.bak` - Backup file for policy admin routes test suite.
+
+Recent Actions:
+- Attempted to run `role.admin.routes.integration.spec.ts` and encountered `AUTHZ_TABLE_NAME` missing error.
+- Added `process.env.AUTHZ_TABLE_NAME`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID` to `beforeAll` in `role.admin.routes.integration.spec.ts`.
+- Updated `tests/mocks/config.mock.ts` to mock `COGNITO_USER_POOL_ID` and `COGNITO_CLIENT_ID`.
+- Implemented global `jest.mock` for `EnvironmentConfigService` and `JwtValidator` in `role.admin.routes.integration.spec.ts`.
+- Encountered and attempted to fix syntax errors (`TS1005: '}' expected.`, `Variable 'app' is used before being assigned.`) due to incorrect `replace` operations that removed essential code and duplicated mocks.
+- The last action was to read the file content to prepare for fixing the syntax errors.
+
+Current Plan:
+1. [IN PROGRESS] Fix the syntax errors in `tests/integration/routes/role.admin.routes.integration.spec.ts` by manually constructing the entire desired content of the file and writing it back. This will ensure correct placement of `jest.mock` calls, proper `beforeAll` block structure, and correct `app` initialization.
+2. [TODO] Run the tests for `tests/integration/routes/role.admin.routes.integration.spec.ts` to verify the fixes.
+3. [TODO] Once all tests in `role.admin.routes.integration.spec.ts` are passing, review for any missing tests based on the `IRoleAdminService` interface.
+4. [TODO] If no more tests are missing, delete any `.bak` files related to `role.admin.routes.integration.spec.ts`.
+5. [TODO] Proceed to the next test file alphabetically.
 
 ---
-
-### 1. Shared Architectural Blueprint & Key Principles
-
-This section defines the expected "blueprint" for all services in this ecosystem.
-
-*   **Core Technology Stack:**
-    *   **Language/Platform:** TypeScript on Node.js
-    *   **Framework:** Express.js
-    *   **Dependency Injection:** `tsyringe`
-    *   **Logging:** `winston`
-    *   **Testing:** `jest`
-    *   **Resilience:** `opossum` (Circuit Breaker)
-    *   **Cloud Services:** AWS Cognito (IdP), AWS DynamoDB (Database)
-
-*   **Core Architecture: Clean Architecture**
-    *   `src/api`: Contains API layer components (Controllers, Routes, Middlewares, DTOs).
-    *   `src/application`: Contains application business logic (Services, Use Cases, Interfaces).
-    *   `src/domain`: Contains core domain entities, value objects, and custom exceptions.
-    *   `src/infrastructure`: Contains implementations for external concerns (Adapters for AWS, Database Repositories, Configuration).
-
-*   **Key Guiding Principles:**
-    1.  **Interface-Driven Design:** All services and adapters must be abstracted behind interfaces.
-    2.  **Dependency Injection:** `tsyringe` is used to manage all dependencies.
-    3.  **Centralized & Structured Error Handling:** A global error-handling middleware produces consistent JSON error responses.
-    4.  **Resilience by Default:** Critical external service interactions (especially AWS) must be wrapped in a circuit breaker.
-    5.  **Contextual Logging:** All log entries are structured (JSON) and include a `requestId`.
-    6.  **Configuration Management:** Configuration is loaded from environment variables via a dedicated `ConfigService`.
-    7.  **Security First:** Endpoints are protected by an authentication guard middleware.
-
----
-
-### 2. Service-Specific Summaries
-
-*   **Authentication Service:** Handles user authentication, token management, and registration. Sets the foundational architectural pattern.
-*   **Account Management Service:** Handles user profile updates and MFA settings. Demonstrates high consistency with the auth service.
-*   **User Management Service:** Handles user/group/role/permission administration.
-    *   **Review Finding:** This service shows **excellent** consistency with the established blueprint. It correctly implements all core principles, including Clean Architecture, DI, and resilience patterns.
-    *   **Minor Verification Point:** The review noted a potential missing `DynamoUserProfileRepository.ts` implementation file in the directory listing, which should be verified.
-
----
-
-### 3. Overall Project Goal
-
-The services are designed to be interconnected but modular parts of a larger system. The strict adherence to a shared architecture ensures that developers can move between services with minimal cognitive load, and that the system as a whole remains robust, maintainable, and resilient. This context should be applied to the review of any subsequent services in the project.

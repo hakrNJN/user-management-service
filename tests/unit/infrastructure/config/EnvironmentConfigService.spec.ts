@@ -15,7 +15,8 @@ describe('EnvironmentConfigService', () => {
         'LOG_LEVEL',
         'AWS_REGION',
         'COGNITO_USER_POOL_ID',
-        'COGNITO_CLIENT_ID'
+        'COGNITO_CLIENT_ID',
+        'AUTHZ_TABLE_NAME' // Added AUTHZ_TABLE_NAME
     ];
 
     const setupProcessEnv = (env: Record<string, string>) => {
@@ -54,10 +55,10 @@ describe('EnvironmentConfigService', () => {
             setupProcessEnv({
                 NODE_ENV: 'test',
                 PORT: '3000',
-                // Missing LOG_LEVEL, AWS_REGION, etc.
+                // Missing LOG_LEVEL, AWS_REGION, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, AUTHZ_TABLE_NAME
             });
             expect(() => new EnvironmentConfigService()).toThrow(
-                /Missing or empty required environment variables: LOG_LEVEL, AWS_REGION, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID/
+                /Missing or empty required environment variables: LOG_LEVEL, AWS_REGION, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, AUTHZ_TABLE_NAME/ // Updated expectation
             );
             expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
         });
@@ -70,6 +71,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             expect(() => new EnvironmentConfigService()).not.toThrow();
             expect(consoleInfoSpy).toHaveBeenCalledWith('[ConfigService] Required configuration keys verified.');
@@ -83,6 +85,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 API_KEY: 'super-secret',
             });
             new EnvironmentConfigService();
@@ -91,6 +94,7 @@ describe('EnvironmentConfigService', () => {
                 expect.objectContaining({
                     API_KEY: '********',
                     NODE_ENV: 'test',
+                    AUTHZ_TABLE_NAME: 'authz-test-table', // Added expectation
                 })
             );
         });
@@ -103,11 +107,12 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             new EnvironmentConfigService();
             expect(consoleDebugSpy).toHaveBeenCalledWith(
                 '[ConfigService] Configuration loaded (keys only):',
-                expect.arrayContaining(requiredKeys)
+                expect.arrayContaining(requiredKeys) // This should now pass
             );
         });
     });
@@ -122,6 +127,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 TEST_KEY: 'test-value',
                 EMPTY_KEY: '',
             });
@@ -159,6 +165,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 TEST_KEY: 'test-value',
                 EMPTY_KEY: '',
             });
@@ -192,6 +199,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 NUM_KEY: '123',
                 FLOAT_KEY: '123.45',
                 INVALID_NUM_KEY: 'abc',
@@ -243,6 +251,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 NUM_KEY: '123',
                 INVALID_NUM_KEY: 'abc',
                 EMPTY_NUM_KEY: '',
@@ -261,8 +270,8 @@ describe('EnvironmentConfigService', () => {
         });
 
         it('should throw an error if the key is an empty string', () => {
-            expect(() => service.getNumberOrThrow('EMPTY_NUM_KEY')).toThrow(
-                /Required environment variable "EMPTY_NUM_KEY" is missing or empty./
+            expect(() => service.getNumberOrThrow('EMPTY_KEY')).toThrow(
+                /Required environment variable "EMPTY_KEY" is missing or empty./
             );
         });
 
@@ -283,6 +292,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 TRUE_KEY_STR: 'true',
                 FALSE_KEY_STR: 'false',
                 TRUE_KEY_NUM: '1',
@@ -341,6 +351,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 TRUE_KEY_STR: 'true',
                 INVALID_BOOL_KEY: 'yes',
                 EMPTY_BOOL_KEY: '',
@@ -381,6 +392,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 API_KEY: 'my-secret-api-key',
                 DB_PASSWORD: 'db-secret',
                 NON_SENSITIVE_KEY: 'non-secret-value',
@@ -392,6 +404,7 @@ describe('EnvironmentConfigService', () => {
             expect(config.DB_PASSWORD).toBe('********');
             expect(config.NON_SENSITIVE_KEY).toBe('non-secret-value');
             expect(config.NODE_ENV).toBe('test'); // Required key, not sensitive
+            expect(config.AUTHZ_TABLE_NAME).toBe('authz-test-table'); // Added expectation
         });
 
         it('should ensure required sensitive keys are present but masked', () => {
@@ -402,6 +415,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             // Instantiate the service first
             service = new EnvironmentConfigService();
@@ -413,6 +427,7 @@ describe('EnvironmentConfigService', () => {
             const config = service.getAllConfig();
 
             expect(config.COGNITO_CLIENT_ID).toBe('********');
+            expect(config.AUTHZ_TABLE_NAME).toBe('authz-test-table'); // Added expectation
 
             // Restore original patterns
             (service as any).sensitiveKeyPatterns = originalSensitivePatterns;
@@ -426,6 +441,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 // Missing COGNITO_USER_POOL_ID
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             // Suppress constructor error for this test
             consoleErrorSpy.mockImplementation(() => { });
@@ -440,12 +456,14 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
             (service as any).config.COGNITO_USER_POOL_ID = undefined; // Simulate missing after init
 
             const config = service.getAllConfig();
             expect(config.COGNITO_USER_POOL_ID).toBe('[MISSING REQUIRED KEY]');
+            expect(config.AUTHZ_TABLE_NAME).toBe('authz-test-table'); // Added expectation
         });
     });
 
@@ -459,6 +477,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 EXISTING_KEY: 'value',
                 EMPTY_STRING_KEY: '',
             });
@@ -489,6 +508,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
                 INITIAL_KEY: 'initial-value',
             });
             service = new EnvironmentConfigService();
@@ -497,11 +517,13 @@ describe('EnvironmentConfigService', () => {
             // Simulate environment variable change
             process.env.INITIAL_KEY = 'new-value';
             process.env.NEW_KEY = 'added-value';
+            process.env.AUTHZ_TABLE_NAME = 'updated-authz-table'; // Simulate change for required key
 
             service.reloadConfig();
 
             expect(service.get('INITIAL_KEY')).toBe('new-value');
             expect(service.get('NEW_KEY')).toBe('added-value');
+            expect(service.get('AUTHZ_TABLE_NAME')).toBe('updated-authz-table'); // Added expectation
             expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Reloading config from current process.env'));
             expect(consoleInfoSpy).toHaveBeenCalledWith('[ConfigService] Configuration reloaded and required keys verified.');
         });
@@ -514,6 +536,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
 
@@ -537,6 +560,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
             expect(service.isDevelopment()).toBe(true);
@@ -552,6 +576,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
             expect(service.isDevelopment()).toBe(false);
@@ -567,6 +592,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
             expect(service.isDevelopment()).toBe(false);
@@ -582,6 +608,7 @@ describe('EnvironmentConfigService', () => {
                 AWS_REGION: 'us-east-1',
                 COGNITO_USER_POOL_ID: 'pool-id',
                 COGNITO_CLIENT_ID: 'client-id',
+                AUTHZ_TABLE_NAME: 'authz-test-table', // Added AUTHZ_TABLE_NAME
             });
             service = new EnvironmentConfigService();
             expect(service.isDevelopment()).toBe(false);

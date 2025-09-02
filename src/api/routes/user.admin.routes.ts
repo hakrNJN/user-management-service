@@ -58,9 +58,9 @@ router.put(
     userAdminController.updateUserAttributes
 );
 
-// DELETE /admin/users/:username - Deactivate User
-router.delete(
-    '/:username',
+// PUT /admin/users/:username/disable - Deactivate User
+router.put(
+    '/:username/disable',
     userAdminController.disableUser
 );
 
@@ -68,6 +68,12 @@ router.delete(
 router.put(
     '/:username/reactivate',
     userAdminController.enableUser
+);
+
+// DELETE /admin/users/:username - Delete User (Permanent)
+router.delete(
+    '/:username',
+    userAdminController.deleteUser
 );
 
 // POST /admin/users/:username/initiate-password-reset - Admin Initiate Password Reset

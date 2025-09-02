@@ -10,6 +10,7 @@ import { UserStatusType, UserType, GroupType } from '@aws-sdk/client-cognito-ide
 describe('User Admin E2E', () => {
     let app: Express; // Declare app variable
     const adminToken = 'dummy-admin-token';
+    const BASE_API_PATH = '/api/admin/users';
 
     beforeAll(() => {
         app = createApp(); // Initialize app here
@@ -18,15 +19,18 @@ describe('User Admin E2E', () => {
     const username = `test-user-${Date.now()}`;
     const userDetails = {
         username,
-        email: `${username}@example.com`,
         temporaryPassword: 'Password123!',
+        userAttributes: {
+            email: `${username}@example.com`,
+            name: 'Test User', // Add a name attribute as well
+        },
     };
 
     const cognitoUser: UserType = {
         Username: username,
         Attributes: [
             { Name: 'sub', Value: 'uuid-for-user' },
-            { Name: 'email', Value: userDetails.email },
+            { Name: 'email', Value: userDetails.userAttributes.email },
         ],
         Enabled: true,
         UserStatus: UserStatusType.CONFIRMED,
@@ -38,11 +42,15 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminCreateUser.mockResolvedValue(cognitoUser);
 
         const response = await request(app)
-            .post('/admin/users')
+            .post(BASE_API_PATH)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send(userDetails)
-            .expect(201);
+            .send({ body: userDetails }); // Re-added .expect(201) for now
 
+        if (response.status !== 201) {
+            console.log('Response Status:', response.status);
+            console.log('Response Body:', response.body);
+        }
+        expect(response.status).toBe(201); // Added explicit status check
         expect(response.body.username).toBe(username);
         expect(userMgmtAdapterMock.adminCreateUser).toHaveBeenCalledWith(userDetails);
     });
@@ -52,7 +60,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue({ groups: [] as GroupType[] });
 
         const response = await request(app)
-            .get(`/admin/users/${username}`)
+            .get(`${BASE_API_PATH}/${username}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
 
@@ -69,7 +77,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminUpdateUserAttributes.mockResolvedValue();
 
         await request(app)
-            .patch(`/admin/users/${username}/attributes`)
+            .patch(`${BASE_API_PATH}/${username}/attributes`)
             .set('Authorization', `Bearer ${adminToken}`)
             .send(attributesToUpdate)
             .expect(204);
@@ -84,7 +92,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminAddUserToGroup.mockResolvedValue();
 
         await request(app)
-            .post(`/admin/users/${username}/groups`)
+            .post(`${BASE_API_PATH}/${username}/groups`)
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ groupName })
             .expect(204);
@@ -97,7 +105,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminListGroupsForUser.mockResolvedValue(groups);
 
         const response = await request(app)
-            .get(`/admin/users/${username}/groups`)
+            .get(`${BASE_API_PATH}/${username}/groups`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
 
@@ -109,7 +117,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminRemoveUserFromGroup.mockResolvedValue();
 
         await request(app)
-            .delete(`/admin/users/${username}/groups/${groupName}`)
+            .delete(`${BASE_API_PATH}/${username}/groups/${groupName}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         
@@ -119,8 +127,8 @@ describe('User Admin E2E', () => {
     it('should disable the user', async () => {
         userMgmtAdapterMock.adminDisableUser.mockResolvedValue();
 
-        await request(app)
-            .post(`/admin/users/${username}/disable`)
+        await request(app) 
+            .post(`${BASE_API_PATH}/${username}/disable`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         
@@ -131,7 +139,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminEnableUser.mockResolvedValue();
 
         await request(app)
-            .post(`/admin/users/${username}/enable`)
+            .post(`${BASE_API_PATH}/${username}/enable`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         
@@ -142,7 +150,7 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminDeleteUser.mockResolvedValue();
 
         await request(app)
-            .delete(`/admin/users/${username}`)
+            .delete(`${BASE_API_PATH}/${username}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         

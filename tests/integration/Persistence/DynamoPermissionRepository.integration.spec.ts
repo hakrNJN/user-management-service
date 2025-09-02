@@ -1,29 +1,66 @@
-// tests/integration/DynamoPermissionRepository.integration.spec.ts
 import 'reflect-metadata';
 import { IPermissionRepository } from '../../../src/application/interfaces/IPermissionRepository';
 import { container } from 'tsyringe';
 import { Permission } from '../../../src/domain/entities/Permission';
 import { TYPES } from '../../../src/shared/constants/types';
 import { BaseError } from '../../../src/shared/errors/BaseError';
-import { createTestTable, deleteTestTable, clearTestTable, destroyDynamoDBClient, setupIntegrationTest } from '../../helpers/dynamodb.helper';
-
+import { clearTestTable } from '../../helpers/dynamodb.helper';
+import { mockConfigService } from '../../mocks/config.mock';
+import { loggerMock } from '../../mocks/logger.mock';
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBProvider } from '../../../src/infrastructure/persistence/dynamodb/dynamodb.client';
+import { ScalarAttributeType, KeyType } from "@aws-sdk/client-dynamodb";
+import { DynamoPermissionRepository } from '../../../src/infrastructure/persistence/dynamodb/DynamoPermissionRepository';
+import { IConfigService } from '../../../src/application/interfaces/IConfigService';
 
 describe('DynamoPermissionRepository Integration Tests', () => {
     let permissionRepository: IPermissionRepository;
+    const tableName = 'TestPermissions';
 
-    beforeAll(async () => {
-        setupIntegrationTest(); // Setup container with test config
+    // Define the schema for the Permission table
+    const permissionTableKeySchema = [
+        { AttributeName: "PK", KeyType: KeyType.HASH },
+        { AttributeName: "SK", KeyType: KeyType.RANGE }
+    ];
+
+    beforeAll(() => {
+        // Register the real repository implementation in our test container
+        container.register<IPermissionRepository>(TYPES.PermissionRepository, {
+            useClass: DynamoPermissionRepository,
+        });
+
+        // Register mocks for dependencies
+        container.register(TYPES.ConfigService, { useValue: mockConfigService });
+        container.register(TYPES.Logger, { useValue: loggerMock });
+
+        // Register the DynamoDBClient and DynamoDBProvider
+        container.register(DynamoDBClient, {
+            useFactory: () => {
+                return new DynamoDBClient({
+                    region: "ap-south-1",
+                });
+            },
+        });
+
+        container.register(TYPES.DynamoDBProvider, {
+            useFactory: (c) => {
+                const client = c.resolve(DynamoDBClient);
+                const config = c.resolve<IConfigService>(TYPES.ConfigService);
+                // Temporarily override the AUTHZ_TABLE_NAME for this specific test
+                (config.getOrThrow as jest.Mock).mockImplementation((key: string) => {
+                    if (key === 'AUTHZ_TABLE_NAME') return tableName;
+                    // Fallback to original mock implementation for other keys
+                    return mockConfigService.getOrThrow(key);
+                });
+                return new DynamoDBProvider(config, tableName, client);
+            },
+        });
+
         permissionRepository = container.resolve<IPermissionRepository>(TYPES.PermissionRepository);
-        await createTestTable(); // Create the test table
-    });
-
-    afterAll(async () => {
-        await deleteTestTable(); // Clean up the test table
-        destroyDynamoDBClient(); // Destroy the DynamoDB client
     });
 
     beforeEach(async () => {
-        await clearTestTable(); // Clear table before each test
+        await clearTestTable(tableName, permissionTableKeySchema);
     });
 
     const testPerm1 = new Permission('doc:read', 'Read documents');

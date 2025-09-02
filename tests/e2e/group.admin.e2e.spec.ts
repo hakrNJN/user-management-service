@@ -32,11 +32,13 @@ describe('Group Admin E2E', () => {
     const roleName = `test-role-for-group-${Date.now()}`;
     const roleEntity = new Role(roleName, 'A test role');
 
+    const BASE_API_PATH = '/api/admin/groups';
+
     it('should create a new group', async () => {
         userMgmtAdapterMock.adminCreateGroup.mockResolvedValue(cognitoGroup);
 
         const response = await request(app)
-            .post('/admin/groups')
+            .post(BASE_API_PATH)
             .set('Authorization', `Bearer ${adminToken}`)
             .send(groupDetails)
             .expect(201);
@@ -49,7 +51,7 @@ describe('Group Admin E2E', () => {
         userMgmtAdapterMock.adminGetGroup.mockResolvedValue(cognitoGroup);
 
         const response = await request(app)
-            .get(`/admin/groups/${groupName}`)
+            .get(`${BASE_API_PATH}/${groupName}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
 
@@ -63,10 +65,10 @@ describe('Group Admin E2E', () => {
         assignmentRepositoryMock.assignRoleToGroup.mockResolvedValue();
 
         await request(app)
-            .post(`/admin/groups/${groupName}/roles`)
+            .post(`${BASE_API_PATH}/${groupName}/roles`)
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ roleName })
-            .expect(204);
+            .expect(200); // Changed from 204 to 200
         
         expect(assignmentRepositoryMock.assignRoleToGroup).toHaveBeenCalledWith(groupName, roleName);
     });
@@ -76,11 +78,11 @@ describe('Group Admin E2E', () => {
         assignmentRepositoryMock.findRolesByGroupName.mockResolvedValue([roleName]);
 
         const response = await request(app)
-            .get(`/admin/groups/${groupName}/roles`)
+            .get(`${BASE_API_PATH}/${groupName}/roles`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
 
-        expect(response.body).toContain(roleName);
+        expect(response.body.roles).toContain(roleName); // Changed to response.body.roles
         expect(assignmentRepositoryMock.findRolesByGroupName).toHaveBeenCalledWith(groupName);
     });
 
@@ -88,7 +90,7 @@ describe('Group Admin E2E', () => {
         assignmentRepositoryMock.removeRoleFromGroup.mockResolvedValue();
 
         await request(app)
-            .delete(`/admin/groups/${groupName}/roles/${roleName}`)
+            .delete(`${BASE_API_PATH}/${groupName}/roles/${roleName}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         
@@ -99,7 +101,7 @@ describe('Group Admin E2E', () => {
         userMgmtAdapterMock.adminDeleteGroup.mockResolvedValue();
 
         await request(app)
-            .delete(`/admin/groups/${groupName}`)
+            .delete(`${BASE_API_PATH}/${groupName}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         

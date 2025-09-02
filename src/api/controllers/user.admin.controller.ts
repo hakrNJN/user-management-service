@@ -139,6 +139,19 @@ export class UserAdminController {
         }
     };
 
+    // DELETE /admin/users/:username
+    deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const adminUser = this.getAdminUser(req);
+        try {
+            const { username } = req.params;
+            await this.userAdminService.deleteUser(adminUser, username);
+            res.status(HttpStatusCode.NO_CONTENT).send();
+        } catch (error) {
+            this.logger.error(`[UserAdminCtrl] Failed to delete user ${req.params.username}`, { adminUserId: adminUser.id, error });
+            next(error);
+        }
+    };
+
     // POST /admin/users/:username/initiate-password-reset
     initiatePasswordReset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         const adminUser = this.getAdminUser(req);

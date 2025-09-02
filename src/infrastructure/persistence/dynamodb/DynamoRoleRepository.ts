@@ -37,15 +37,13 @@ export const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
 @injectable()
 export class DynamoRoleRepository implements IRoleRepository {
     private readonly tableName: string;
-    private readonly client: DynamoDBClient; // Use base client
 
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
         @inject(TYPES.Logger) private logger: ILogger,
-        @inject(DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
+        @inject(DynamoDBClient) private client: DynamoDBClient
     ) {
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
-        this.client = dynamoDBProvider.client;
     }
 
     private mapToRole(item: Record<string, AttributeValue>): Role {
