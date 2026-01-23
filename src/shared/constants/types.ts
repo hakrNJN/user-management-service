@@ -7,6 +7,9 @@ export const TYPES = {
     // Application Layer Interfaces / Ports
     Logger: Symbol.for('Logger'),
     ConfigService: Symbol.for('ConfigService'),
+    // Universal Repository Tokens
+    RepositoryFactory: Symbol.for('RepositoryFactory'),
+    DbProvider: Symbol.for('DbProvider'),
     UserAdminService: Symbol.for('UserAdminService'), // Service for user admin logic
     GroupAdminService: Symbol.for('GroupAdminService'), // Service for group admin logic
     UserMgmtAdapter: Symbol.for('UserMgmtAdapter'), // Adapter for IdP admin actions

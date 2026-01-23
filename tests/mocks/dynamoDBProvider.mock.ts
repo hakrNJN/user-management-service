@@ -25,7 +25,7 @@ const testDynamoDBClient = new DynamoDBClient({
 @injectable()
 export class MockDynamoDBProviderClass extends DynamoDBProvider {
     constructor() {
-        super(mockConfigService, mockConfigService.getOrThrow('AUTHZ_TABLE_NAME'), testDynamoDBClient);
+        super(mockConfigService, testDynamoDBClient);
         return mockDynamoDBProvider;
     }
 }

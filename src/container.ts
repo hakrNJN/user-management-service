@@ -78,11 +78,26 @@ container.registerSingleton<IPolicyEngineAdapter>(TYPES.PolicyEngineAdapter, Dyn
 
 
 // --- Register Persistence Repositories (Often Singleton, but can be Transient if stateful/scoped) ---
+import { RepositoryFactory } from './infrastructure/factories/RepositoryFactory';
+import { FirestoreUserProfileRepository } from './infrastructure/persistence/firestore/FirestoreUserProfileRepository';
+import { MongoUserProfileRepository } from './infrastructure/persistence/mongo/MongoUserProfileRepository';
+
+container.registerSingleton(RepositoryFactory);
+container.registerSingleton(DynamoUserProfileRepository);
+container.registerSingleton(FirestoreUserProfileRepository);
+container.registerSingleton(MongoUserProfileRepository);
+
 container.registerSingleton<IAssignmentRepository>(TYPES.AssignmentRepository, DynamoAssignmentRepository);
 container.registerSingleton<IPermissionRepository>(TYPES.PermissionRepository, DynamoPermissionRepository);
 container.registerSingleton<IRoleRepository>(TYPES.RoleRepository, DynamoRoleRepository);
 container.registerSingleton<IPolicyRepository>(TYPES.PolicyRepository, DynamoPolicyRepository);
-container.registerSingleton<IUserProfileRepository>(TYPES.UserProfileRepository, DynamoUserProfileRepository);
+
+// Use Factory for UserProfileRepository
+container.register(TYPES.UserProfileRepository, {
+    useFactory: (c) => {
+        return c.resolve(RepositoryFactory).getUserRepository();
+    }
+});
 
 
 // --- Register Application Services (Singletons often suitable) ---

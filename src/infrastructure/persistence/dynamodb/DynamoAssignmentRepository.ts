@@ -31,7 +31,7 @@ export class DynamoAssignmentRepository implements IAssignmentRepository {
         @inject(TYPES.Logger) private logger: ILogger,
         @inject(TYPES.DynamoDBProvider) dynamoDBProvider: DynamoDBProvider
     ) {
-        this.tableName = dynamoDBProvider.tableName; // Use the passed tableName
+        this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
         this.client = dynamoDBProvider.client; // <<< Get base client from provider
     }
 

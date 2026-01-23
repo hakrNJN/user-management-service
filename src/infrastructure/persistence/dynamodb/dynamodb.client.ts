@@ -8,14 +8,11 @@ import { TYPES } from "../../../shared/constants/types";
 export class DynamoDBProvider {
     public readonly client: DynamoDBClient;
     public readonly documentClient: DynamoDBDocumentClient;
-    public readonly tableName: string;
 
     constructor(
         @inject(TYPES.ConfigService) configService: IConfigService,
-        tableName: string, // Add tableName here
         client?: DynamoDBClient // Optional client for testing
     ) {
-        this.tableName = tableName;
 
         if (client) {
             this.client = client;

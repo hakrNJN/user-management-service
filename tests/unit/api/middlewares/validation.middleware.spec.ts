@@ -64,16 +64,16 @@ describe('validationMiddleware', () => {
         const validationError = next.mock.calls[0][0] as ValidationError;
         expect(validationError.message).toBe('Input validation failed');
         expect(validationError.details).toEqual({
-            'body.name': 'Name is required',
-            'body.age': 'Must be 18 or older',
+            'name': 'Name is required',
+            'age': 'Must be 18 or older',
         });
         expect(loggerMock.warn).toHaveBeenCalledTimes(1);
         expect(loggerMock.warn).toHaveBeenCalledWith(
             expect.stringContaining('Request validation failed'),
             expect.objectContaining({
                 errors: expect.objectContaining({
-                    'body.name': 'Name is required',
-                    'body.age': 'Must be 18 or older',
+                    'name': 'Name is required',
+                    'age': 'Must be 18 or older',
                 }),
             })
         );
@@ -93,14 +93,14 @@ describe('validationMiddleware', () => {
         expect(next).toHaveBeenCalledWith(expect.any(ValidationError));
         const validationError = next.mock.calls[0][0] as ValidationError;
         expect(validationError.details).toEqual({
-            'params.id': 'Invalid ID format',
+            'id': 'Invalid ID format',
         });
         expect(loggerMock.warn).toHaveBeenCalledTimes(1);
         expect(loggerMock.warn).toHaveBeenCalledWith(
             expect.stringContaining('Request validation failed'),
             expect.objectContaining({
                 errors: expect.objectContaining({
-                    'params.id': 'Invalid ID format',
+                    'id': 'Invalid ID format',
                 }),
             })
         );

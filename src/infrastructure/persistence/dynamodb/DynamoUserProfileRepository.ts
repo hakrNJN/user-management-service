@@ -4,7 +4,7 @@ import { IUserProfileRepository } from '../../../application/interfaces/IUserPro
 import { UserProfile } from '../../../domain/entities/UserProfile';
 import { TYPES } from '../../../shared/constants/types';
 import { DynamoDBProvider } from './dynamodb.client';
-import { GetCommand, PutCommand, DeleteCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, DeleteCommand, QueryCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { ILogger } from '../../../application/interfaces/ILogger';
 import { IConfigService } from '../../../application/interfaces/IConfigService';
@@ -105,5 +105,13 @@ export class DynamoUserProfileRepository implements IUserProfileRepository {
         });
         await this.dbProvider.documentClient.send(command);
         return true;
+    }
+
+    async findAll(): Promise<UserProfile[]> {
+        // WARNING: Scan is expensive. Use with caution or replace with Query on GSI.
+        // For 'Universal' compliance, we provide a basic implementation.
+        const command = new ScanCommand({ TableName: this.tableName });
+        const result = await this.dbProvider.documentClient.send(command);
+        return (result.Items || []).map(item => UserProfile.fromPersistence(item));
     }
 }

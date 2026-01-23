@@ -1,10 +1,7 @@
-// src/application/interfaces/IUserProfileRepository.ts
 import { UserProfile } from '../../domain/entities/UserProfile';
+import { IRepository } from './IRepository';
 
-export interface IUserProfileRepository {
-    save(profile: UserProfile): Promise<void>;
-    findById(userId: string): Promise<UserProfile | null>;
+export interface IUserProfileRepository extends IRepository<UserProfile> {
+    // Specific methods beyond generic CRUD
     findByEmail(email: string): Promise<UserProfile | null>;
-    update(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null>;
-    delete(userId: string): Promise<boolean>;
 }
