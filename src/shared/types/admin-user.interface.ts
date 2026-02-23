@@ -10,6 +10,11 @@ export interface AdminUser {
     id: string;
 
     /**
+     * The tenant identifier this admin user belongs to.
+     */
+    tenantId: string;
+
+    /**
      * The username of the admin user.
      */
     username: string;
@@ -36,9 +41,9 @@ declare global {
              * attached by the admin auth guard middleware.
              */
             adminUser?: AdminUser;
-             /**
-             * Holds the unique request ID, attached by the requestId middleware.
-             */
+            /**
+            * Holds the unique request ID, attached by the requestId middleware.
+            */
             id?: string; // Keep request ID as well
         }
     }

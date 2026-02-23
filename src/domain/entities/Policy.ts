@@ -2,6 +2,7 @@
 interface PolicyDynamoItem {
     PK: string;
     SK: string;
+    tenantId: string;
     EntityType: 'Policy';
     id: string;
     policyName: string;
@@ -22,6 +23,7 @@ interface PolicyDynamoItem {
  */
 export class Policy {
     constructor(
+        public readonly tenantId: string,
         /** Unique identifier for the policy (e.g., UUID). */
         public readonly id: string,
         /** Unique, human-readable and machine-usable name (e.g., 'policy.users.read_own_profile'). */
@@ -41,7 +43,7 @@ export class Policy {
         /** Timestamp of the last update. */
         public updatedAt: Date = new Date(),
         public isActive: boolean = true
-    ) {}
+    ) { }
 
     /**
      * Updates mutable properties of the policy.
@@ -69,6 +71,7 @@ export class Policy {
      * @param data - Data retrieved from the database.
      */
     public static fromPersistence(data: {
+        tenantId: string;
         id: string;
         policyName: string;
         policyDefinition: string;
@@ -85,6 +88,7 @@ export class Policy {
             throw new Error("Cannot create Policy from persistence: Missing required fields (id, policyName, policyDefinition, policyLanguage).");
         }
         return new Policy(
+            data.tenantId,
             data.id,
             data.policyName,
             data.policyDefinition,
@@ -103,17 +107,18 @@ export class Policy {
      * Uses a more specific return type.
      */
     public toPersistence(): Omit<PolicyDynamoItem, 'PK' | 'SK' | 'EntityType'> {
-         return {
-             id: this.id,
-             policyName: this.policyName,
-             policyDefinition: this.policyDefinition,
-             policyLanguage: this.policyLanguage,
-             description: this.description,
-             version: this.version,
-             metadata: this.metadata,
-             createdAt: this.createdAt.toISOString(),
-             updatedAt: this.updatedAt.toISOString(),
-             isActive: this.isActive,
-         };
+        return {
+            tenantId: this.tenantId,
+            id: this.id,
+            policyName: this.policyName,
+            policyDefinition: this.policyDefinition,
+            policyLanguage: this.policyLanguage,
+            description: this.description,
+            version: this.version,
+            metadata: this.metadata,
+            createdAt: this.createdAt.toISOString(),
+            updatedAt: this.updatedAt.toISOString(),
+            isActive: this.isActive,
+        };
     }
 }

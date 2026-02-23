@@ -41,11 +41,11 @@ export class DynamoDbPolicyEngineAdapter implements IPolicyEngineAdapter {
         }
     }
 
-    async getPolicyDefinition(policyId: string): Promise<string | null> {
+    async getPolicyDefinition(tenantId: string, policyId: string): Promise<string | null> {
         const operation = 'getPolicyDefinition';
         this.logger.debug(`[${operation}] Attempting to get policy definition for ID: ${policyId}`);
         try {
-            const policy = await this.policyRepository.findById(policyId);
+            const policy = await this.policyRepository.findById(tenantId, policyId);
             if (!policy) {
                 this.logger.warn(`[${operation}] Policy definition not found for ID: ${policyId}`);
                 return null;
@@ -58,11 +58,11 @@ export class DynamoDbPolicyEngineAdapter implements IPolicyEngineAdapter {
         }
     }
 
-    async deletePolicyDefinition(policyId: string): Promise<void> {
+    async deletePolicyDefinition(tenantId: string, policyId: string): Promise<void> {
         const operation = 'deletePolicyDefinition';
         this.logger.info(`[${operation}] Attempting to delete policy definition (and metadata) for ID: ${policyId}`);
         try {
-            const deleted = await this.policyRepository.delete(policyId);
+            const deleted = await this.policyRepository.delete(tenantId, policyId);
             if (!deleted) {
                 // If the repository indicates it wasn't found, throw specific error
                 throw new PolicyNotFoundError(policyId);

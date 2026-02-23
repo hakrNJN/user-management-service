@@ -31,7 +31,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.info(`Admin attempting to create permission`, { adminUserId: adminUser.id, permissionName: details.permissionName });
 
-        const newPermission = new Permission(details.permissionName, details.description);
+        const newPermission = new Permission(adminUser.tenantId, details.permissionName, details.description);
         try {
             await this.permissionRepository.create(newPermission);
             this.logger.info(`Admin successfully created permission '${details.permissionName}'`, { adminUserId: adminUser.id });
@@ -47,7 +47,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.info(`Admin attempting to get permission`, { adminUserId: adminUser.id, permissionName });
         try {
-            const permission = await this.permissionRepository.findByName(permissionName);
+            const permission = await this.permissionRepository.findByName(adminUser.tenantId, permissionName);
             if (!permission) {
                 this.logger.warn(`Admin get permission: Permission not found`, { adminUserId: adminUser.id, permissionName });
                 return null;
@@ -64,7 +64,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.info(`Admin attempting to list permissions`, { adminUserId: adminUser.id, options });
         try {
-            const result = await this.permissionRepository.list(options);
+            const result = await this.permissionRepository.list(adminUser.tenantId, options);
             this.logger.info(`Admin successfully listed ${result.items.length} permissions`, { adminUserId: adminUser.id });
             return result;
         } catch (error: any) {
@@ -77,7 +77,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.info(`Admin attempting to update permission ${permissionName}`, { adminUserId: adminUser.id, updates });
         try {
-            const updatedPermission = await this.permissionRepository.update(permissionName, updates);
+            const updatedPermission = await this.permissionRepository.update(adminUser.tenantId, permissionName, updates);
             if (!updatedPermission) {
                 this.logger.warn(`Admin update permission: Permission not found for update`, { adminUserId: adminUser.id, permissionName });
                 return null;
@@ -97,7 +97,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         // 1. Attempt to delete the permission itself
         let deleted: boolean;
         try {
-            deleted = await this.permissionRepository.delete(permissionName);
+            deleted = await this.permissionRepository.delete(adminUser.tenantId, permissionName);
         } catch (error: any) {
             this.logger.error(`Admin failed during permission deletion (repo operation)`, { adminUserId: adminUser.id, permissionName, error });
             throw error;
@@ -112,7 +112,7 @@ export class PermissionAdminService implements IPermissionAdminService {
         // 3. If deleted, cleanup assignments
         this.logger.info(`Permission ${permissionName} deleted from repository, attempting assignment cleanup...`, { adminUserId: adminUser.id });
         try {
-            await this.assignmentRepository.removeAllAssignmentsForPermission(permissionName);
+            await this.assignmentRepository.removeAllAssignmentsForPermission(adminUser.tenantId, permissionName);
             this.logger.info(`Successfully cleaned up assignments for deleted permission ${permissionName}`, { adminUserId: adminUser.id });
         } catch (cleanupError: any) {
             this.logger.error(`Failed to cleanup assignments for deleted permission ${permissionName}. Manual cleanup might be needed.`, { adminUserId: adminUser.id, error: cleanupError });
@@ -128,14 +128,14 @@ export class PermissionAdminService implements IPermissionAdminService {
         this.logger.info(`Admin attempting to list roles for permission '${permissionName}'`, { adminUserId: adminUser.id });
 
         // Validate permission exists
-        const permission = await this.permissionRepository.findByName(permissionName);
+        const permission = await this.permissionRepository.findByName(adminUser.tenantId, permissionName);
         if (!permission) {
             this.logger.warn(`List roles failed: Permission '${permissionName}' not found`, { adminUserId: adminUser.id });
             throw new PermissionNotFoundError(permissionName);
         }
 
         try {
-            const roleNames = await this.assignmentRepository.findRolesByPermissionName(permissionName);
+            const roleNames = await this.assignmentRepository.findRolesByPermissionName(adminUser.tenantId, permissionName);
             this.logger.info(`Admin successfully listed ${roleNames.length} roles for permission '${permissionName}'`, { adminUserId: adminUser.id });
             return roleNames;
         } catch (error: any) {

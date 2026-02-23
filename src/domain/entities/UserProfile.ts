@@ -1,6 +1,7 @@
 // src/domain/entities/UserProfile.ts
 export class UserProfile {
     constructor(
+        public readonly tenantId: string,
         public userId: string,
         public email: string,
         public firstName: string,
@@ -8,10 +9,11 @@ export class UserProfile {
         public phoneNumber?: string,
         public createdAt: Date = new Date(),
         public updatedAt: Date = new Date(),
-    ) {}
+    ) { }
 
     public toPersistence(): Record<string, any> {
         return {
+            tenantId: this.tenantId,
             userId: this.userId,
             email: this.email,
             firstName: this.firstName,
@@ -24,6 +26,7 @@ export class UserProfile {
 
     public static fromPersistence(data: Record<string, any>): UserProfile {
         const profile = new UserProfile(
+            data.tenantId,
             data.userId,
             data.email,
             data.firstName,

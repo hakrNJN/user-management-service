@@ -15,7 +15,7 @@ describe('UserAdminController', () => {
     let res: MockProxy<Response>;
     let next: MockProxy<NextFunction>;
 
-    const adminUser: AdminUser = { id: 'admin-id', username: 'admin', roles: ['admin'] };
+    const adminUser: AdminUser = { id: 'admin-id', tenantId: 'test-tenant', username: 'admin', roles: ['admin'] };
 
     beforeEach(() => {
         container.register(TYPES.UserAdminService, { useValue: userAdminServiceMock });

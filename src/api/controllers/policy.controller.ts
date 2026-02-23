@@ -16,7 +16,8 @@ export class PolicyController {
     public async getPolicyBundle(req: Request, res: Response, next: NextFunction) {
         try {
             this.logger.info('Fetching policy bundle');
-            const bundle = await this.policyService.getPolicyBundle();
+            const tenantId = (req.query.tenantId as string) || 'default-tenant';
+            const bundle = await this.policyService.getPolicyBundle(tenantId);
 
             res.setHeader('Content-Type', 'application/gzip');
             res.setHeader('Content-Disposition', 'attachment; filename="bundle.tar.gz"');

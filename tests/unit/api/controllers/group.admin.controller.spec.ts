@@ -16,7 +16,7 @@ describe('GroupAdminController', () => {
     let res: MockProxy<Response>;
     let next: MockProxy<NextFunction>;
 
-    const adminUser: AdminUser = { id: 'admin-id', username: 'admin', roles: ['admin'] };
+    const adminUser: AdminUser = { id: 'admin-id', tenantId: 'test-tenant', username: 'admin', roles: ['admin'] };
 
     beforeEach(() => {
         container.register(TYPES.GroupAdminService, { useValue: groupAdminServiceMock });
@@ -43,7 +43,7 @@ describe('GroupAdminController', () => {
         it('should create a group and return 201 status', async () => {
             const groupDetails = { groupName: 'new-group', description: 'A new group' };
             req.body = groupDetails;
-            const createdGroup = new Group(groupDetails.groupName, groupDetails.description, 'ACTIVE', 0, new Date(), new Date());
+            const createdGroup = new Group('test-tenant', groupDetails.groupName, groupDetails.description, 'ACTIVE', 0, new Date(), new Date());
             groupAdminServiceMock.createGroup.mockResolvedValue(createdGroup);
 
             await controller.createGroup(req, res, next);
@@ -68,7 +68,7 @@ describe('GroupAdminController', () => {
         it('should get a group and return 200 status', async () => {
             const groupName = 'test-group';
             req.params = { groupName };
-            const group = new Group(groupName, 'description', 'ACTIVE', 0, new Date(), new Date());
+            const group = new Group('test-tenant', groupName, 'description', 'ACTIVE', 0, new Date(), new Date());
             groupAdminServiceMock.getGroup.mockResolvedValue(group);
 
             await controller.getGroup(req, res, next);

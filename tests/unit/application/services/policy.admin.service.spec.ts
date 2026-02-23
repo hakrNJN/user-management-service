@@ -17,13 +17,13 @@ describe('PolicyAdminService', () => {
     let service: PolicyAdminService;
 
     const adminUser: AdminUser = {
-        id: 'admin-id',
+        id: 'admin-id', tenantId: 'test-tenant',
         username: 'admin-user',
         roles: ['admin'],
     };
 
     const policyId = 'policy-id-123';
-    const policyEntity = new Policy(policyId, 'Test Policy', 'def', 'rego', 1, 'A test policy', {}, new Date(), new Date(), true);
+    const policyEntity = new Policy('test-tenant', policyId, 'Test Policy', 'def', 'rego', 1, 'A test policy', {}, new Date(), new Date(), true);
 
     beforeEach(() => {
         service = container.resolve(PolicyAdminService);
@@ -51,7 +51,7 @@ describe('PolicyAdminService', () => {
 
             const result = await service.getPolicy(adminUser, policyId);
 
-            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(result).toEqual(policyEntity);
         });
 
@@ -72,7 +72,7 @@ describe('PolicyAdminService', () => {
 
             const result = await service.updatePolicy(adminUser, policyId, updateDetails);
 
-            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(policyRepositoryMock.save).toHaveBeenCalledWith(expect.objectContaining({
                 version: policyEntity.version + 1,
                 policyName: 'Updated Policy'
@@ -94,7 +94,7 @@ describe('PolicyAdminService', () => {
 
             await service.deletePolicy(adminUser, policyId);
 
-            expect(policyRepositoryMock.delete).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.delete).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('DELETE_POLICY'), expect.any(Object));
         });
     });
@@ -106,7 +106,7 @@ describe('PolicyAdminService', () => {
 
             const result = await service.listPolicies(adminUser, {});
 
-            expect(policyRepositoryMock.list).toHaveBeenCalledWith({});
+            expect(policyRepositoryMock.list).toHaveBeenCalledWith(expect.any(String), {});
             expect(result).toEqual(policies);
         });
     });
@@ -117,7 +117,7 @@ describe('PolicyAdminService', () => {
 
             const result = await service.getPolicyVersion(adminUser, policyId, 1);
 
-            expect(policyRepositoryMock.getPolicyVersion).toHaveBeenCalledWith(policyId, 1);
+            expect(policyRepositoryMock.getPolicyVersion).toHaveBeenCalledWith(expect.any(String), policyId, 1);
             expect(result).toEqual(policyEntity);
         });
 
@@ -132,26 +132,26 @@ describe('PolicyAdminService', () => {
 
     describe('listPolicyVersions', () => {
         it('should list all policy versions', async () => {
-            const versions = [policyEntity, new Policy(policyId, 'name', 'def', 'rego', 2, '', {}, new Date(), new Date(), true)];
+            const versions = [policyEntity, new Policy('test-tenant', policyId, 'name', 'def', 'rego', 2, '', {}, new Date(), new Date(), true)];
             policyRepositoryMock.listPolicyVersions.mockResolvedValue(versions);
 
             const result = await service.listPolicyVersions(adminUser, policyId);
 
-            expect(policyRepositoryMock.listPolicyVersions).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.listPolicyVersions).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(result).toEqual(versions);
         });
     });
 
     describe('rollbackPolicy', () => {
         it('should rollback a policy to a specific version', async () => {
-            const oldVersionEntity = new Policy(policyId, 'Test Policy', 'old def', 'rego', 1, 'A test policy', {}, new Date(), new Date(), true);
+            const oldVersionEntity = new Policy('test-tenant', policyId, 'Test Policy', 'old def', 'rego', 1, 'A test policy', {}, new Date(), new Date(), true);
             policyRepositoryMock.getPolicyVersion.mockResolvedValue(oldVersionEntity);
             policyRepositoryMock.save.mockResolvedValue();
             (uuidv4 as jest.Mock).mockReturnValue('new-policy-id');
 
             const result = await service.rollbackPolicy(adminUser, policyId, 1);
 
-            expect(policyRepositoryMock.getPolicyVersion).toHaveBeenCalledWith(policyId, 1);
+            expect(policyRepositoryMock.getPolicyVersion).toHaveBeenCalledWith(expect.any(String), policyId, 1);
             expect(policyRepositoryMock.save).toHaveBeenCalledWith(expect.objectContaining({
                 id: 'new-policy-id',
                 version: 1
@@ -168,7 +168,10 @@ describe('PolicyAdminService', () => {
 
     describe('Permissions', () => {
         it('should throw ForbiddenError if admin user does not have required role', async () => {
-            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const nonAdminUser: AdminUser = {
+                id: 'non-admin', tenantId: 'test-tenant',
+                username: 'non-admin-user', roles: ['viewer']
+            };
             const details: CreatePolicyAdminDto = { policyName: 'New Policy', policyDefinition: 'def', policyLanguage: 'rego' };
 
             await expect(service.createPolicy(nonAdminUser, details)).rejects.toThrow(BaseError);

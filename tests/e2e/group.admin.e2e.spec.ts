@@ -30,7 +30,7 @@ describe('Group Admin E2E', () => {
     };
 
     const roleName = `test-role-for-group-${Date.now()}`;
-    const roleEntity = new Role(roleName, 'A test role');
+    const roleEntity = new Role('test-tenant', roleName, 'A test role');
 
     const BASE_API_PATH = '/api/admin/groups';
 
@@ -70,7 +70,7 @@ describe('Group Admin E2E', () => {
             .send({ roleName })
             .expect(200); // Changed from 204 to 200
         
-        expect(assignmentRepositoryMock.assignRoleToGroup).toHaveBeenCalledWith(groupName, roleName);
+        expect(assignmentRepositoryMock.assignRoleToGroup).toHaveBeenCalledWith(expect.any(String), groupName, roleName);
     });
 
     it('should list the roles for the group', async () => {
@@ -83,7 +83,7 @@ describe('Group Admin E2E', () => {
             .expect(200);
 
         expect(response.body.roles).toContain(roleName); // Changed to response.body.roles
-        expect(assignmentRepositoryMock.findRolesByGroupName).toHaveBeenCalledWith(groupName);
+        expect(assignmentRepositoryMock.findRolesByGroupName).toHaveBeenCalledWith(expect.any(String), groupName);
     });
 
     it('should remove the role from the group', async () => {
@@ -94,7 +94,7 @@ describe('Group Admin E2E', () => {
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
         
-        expect(assignmentRepositoryMock.removeRoleFromGroup).toHaveBeenCalledWith(groupName, roleName);
+        expect(assignmentRepositoryMock.removeRoleFromGroup).toHaveBeenCalledWith(expect.any(String), groupName, roleName);
     });
 
     it('should delete the group', async () => {

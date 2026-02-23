@@ -6,9 +6,9 @@ import { QueryOptions, QueryResult } from "../../shared/types/query.types";
  */
 export interface IPermissionRepository {
     create(permission: Permission): Promise<void>;
-    findByName(permissionName: string): Promise<Permission | null>;
-    list(options?: QueryOptions): Promise<QueryResult<Permission>>;
-    update(permissionName: string, updates: Partial<Pick<Permission, 'description'>>): Promise<Permission | null>;
-    delete(permissionName: string): Promise<boolean>;
+    findByName(tenantId: string, permissionName: string): Promise<Permission | null>;
+    list(tenantId: string, options?: QueryOptions): Promise<QueryResult<Permission>>;
+    update(tenantId: string, permissionName: string, updates: Partial<Pick<Permission, 'description'>>): Promise<Permission | null>;
+    delete(tenantId: string, permissionName: string): Promise<boolean>;
     // Add methods for finding permissions by role, etc.
 }

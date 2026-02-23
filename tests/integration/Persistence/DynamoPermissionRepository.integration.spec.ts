@@ -52,7 +52,7 @@ describe('DynamoPermissionRepository Integration Tests', () => {
                     // Fallback to original mock implementation for other keys
                     return mockConfigService.getOrThrow(key);
                 });
-                return new DynamoDBProvider(config, tableName, client);
+                return new DynamoDBProvider(config, client);
             },
         });
 
@@ -63,12 +63,12 @@ describe('DynamoPermissionRepository Integration Tests', () => {
         await clearTestTable(tableName, permissionTableKeySchema);
     });
 
-    const testPerm1 = new Permission('doc:read', 'Read documents');
-    const testPerm2 = new Permission('doc:write', 'Write documents');
+    const testPerm1 = new Permission('test-tenant', 'doc:read', 'Read documents');
+    const testPerm2 = new Permission('test-tenant', 'doc:write', 'Write documents');
 
     it('should create a new permission', async () => {
         await expect(permissionRepository.create(testPerm1)).resolves.not.toThrow();
-        const found = await permissionRepository.findByName(testPerm1.permissionName);
+        const found = await permissionRepository.findByName('test-tenant', testPerm1.permissionName);
         expect(found).toBeInstanceOf(Permission);
         expect(found?.permissionName).toBe(testPerm1.permissionName);
     });
@@ -81,43 +81,43 @@ describe('DynamoPermissionRepository Integration Tests', () => {
 
     it('should find an existing permission by name', async () => {
         await permissionRepository.create(testPerm1);
-        const found = await permissionRepository.findByName(testPerm1.permissionName);
+        const found = await permissionRepository.findByName('test-tenant', testPerm1.permissionName);
         expect(found).toBeInstanceOf(Permission);
         expect(found?.permissionName).toBe(testPerm1.permissionName);
     });
 
     it('should return null when finding a non-existent permission', async () => {
-        const found = await permissionRepository.findByName('perm:nonexistent');
+        const found = await permissionRepository.findByName('test-tenant', 'perm:nonexistent');
         expect(found).toBeNull();
     });
 
     it('should update an existing permission', async () => {
         await permissionRepository.create(testPerm1);
         const updates = { description: 'Read ALL documents now' };
-        const updatedPerm = await permissionRepository.update(testPerm1.permissionName, updates);
+        const updatedPerm = await permissionRepository.update('test-tenant', testPerm1.permissionName, updates);
 
         expect(updatedPerm).toBeInstanceOf(Permission);
         expect(updatedPerm?.description).toBe(updates.description);
 
-        const found = await permissionRepository.findByName(testPerm1.permissionName);
+        const found = await permissionRepository.findByName('test-tenant', testPerm1.permissionName);
         expect(found?.description).toBe(updates.description);
     });
 
     it('should return null when updating a non-existent permission', async () => {
-        const updatedPerm = await permissionRepository.update('perm:nonexistent', { description: 'abc' });
+        const updatedPerm = await permissionRepository.update('test-tenant', 'perm:nonexistent', { description: 'abc' });
         expect(updatedPerm).toBeNull();
     });
 
     it('should delete an existing permission and return true', async () => {
         await permissionRepository.create(testPerm1);
-        const deleted = await permissionRepository.delete(testPerm1.permissionName);
+        const deleted = await permissionRepository.delete('test-tenant', testPerm1.permissionName);
         expect(deleted).toBe(true);
-        const found = await permissionRepository.findByName(testPerm1.permissionName);
+        const found = await permissionRepository.findByName('test-tenant', testPerm1.permissionName);
         expect(found).toBeNull();
     });
 
-     it('should return false when deleting a non-existent permission', async () => {
-        const deleted = await permissionRepository.delete('perm:nonexistent');
+    it('should return false when deleting a non-existent permission', async () => {
+        const deleted = await permissionRepository.delete('test-tenant', 'perm:nonexistent');
         expect(deleted).toBe(false);
     });
 
@@ -125,7 +125,7 @@ describe('DynamoPermissionRepository Integration Tests', () => {
         await permissionRepository.create(testPerm1);
         await permissionRepository.create(testPerm2);
 
-        const result = await permissionRepository.list({ limit: 5 });
+        const result = await permissionRepository.list('test-tenant', { limit: 5 });
         expect(result.items.length).toBeGreaterThanOrEqual(2);
         expect(result.items.some((p: Permission) => p.permissionName === testPerm1.permissionName)).toBe(true);
         expect(result.items.some((p: Permission) => p.permissionName === testPerm2.permissionName)).toBe(true);

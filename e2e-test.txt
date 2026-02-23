@@ -1,0 +1,368 @@
+[dotenv@17.2.1] injecting env (11) from .env.test -- tip: ≡ƒôí auto-backup env with Radar: https://dotenvx.com/radar
+Table TestPolicies created successfully. Waiting for it to become active...
+Table TestAssignments created successfully. Waiting for it to become active...
+Table TestPermissions created successfully. Waiting for it to become active...
+Table TestRoles created successfully. Waiting for it to become active...
+Table TestUsers created successfully. Waiting for it to become active...
+FAIL tests/e2e/group.admin.e2e.spec.ts (23.429 s)
+  ΓùÅ Console
+
+    console.log
+      Validation Middleware - req.body: {
+        groupName: 'test-group-1771847517627',
+        description: 'A test group for e2e tests'
+      }
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - Object.keys(req.body): [ 'groupName', 'description' ]
+
+      at src/api/middlewares/validation.middleware.ts:22:21
+
+    console.log
+      Validation Middleware - JSON.stringify(req.body): {"groupName":"test-group-1771847517627","description":"A test group for e2e tests"}
+
+      at src/api/middlewares/validation.middleware.ts:23:21
+
+    console.log
+      Validation Middleware - req.body: undefined
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - req.body: { roleName: 'test-role-for-group-1771847517627' }
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - Object.keys(req.body): [ 'roleName' ]
+
+      at src/api/middlewares/validation.middleware.ts:22:21
+
+    console.log
+      Validation Middleware - JSON.stringify(req.body): {"roleName":"test-role-for-group-1771847517627"}
+
+      at src/api/middlewares/validation.middleware.ts:23:21
+
+    console.log
+      Validation Middleware - req.body: undefined
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - req.body: undefined
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - req.body: undefined
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+  ΓùÅ Group Admin E2E ΓÇ║ should get the created group
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      54 |             .get(`${BASE_API_PATH}/${groupName}`)
+      55 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 56 |             .expect(200);
+         |              ^
+      57 |
+      58 |         expect(response.body.groupName).toBe(groupName);
+      59 |         expect(userMgmtAdapterMock.adminGetGroup).toHaveBeenCalledWith(groupName);
+
+      at tests/e2e/group.admin.e2e.spec.ts:56:14
+      at tests/e2e/group.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/group.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/group.admin.e2e.spec.ts:50:51)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ Group Admin E2E ΓÇ║ should list the roles for the group
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      81 |             .get(`${BASE_API_PATH}/${groupName}/roles`)
+      82 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 83 |             .expect(200);
+         |              ^
+      84 |
+      85 |         expect(response.body.roles).toContain(roleName); // Changed to response.body.roles
+      86 |         expect(assignmentRepositoryMock.findRolesByGroupName).toHaveBeenCalledWith(expect.any(String), groupName);
+
+      at tests/e2e/group.admin.e2e.spec.ts:83:14
+      at tests/e2e/group.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/group.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/group.admin.e2e.spec.ts:76:58)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ Group Admin E2E ΓÇ║ should remove the role from the group
+
+    expected 204 "No Content", got 500 "Internal Server Error"
+
+      93 |             .delete(`${BASE_API_PATH}/${groupName}/roles/${roleName}`)
+      94 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 95 |             .expect(204);
+         |              ^
+      96 |         
+      97 |         expect(assignmentRepositoryMock.removeRoleFromGroup).toHaveBeenCalledWith(expect.any(String), groupName, roleName);
+      98 |     });
+
+      at tests/e2e/group.admin.e2e.spec.ts:95:14
+      at tests/e2e/group.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/group.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/group.admin.e2e.spec.ts:89:60)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ Group Admin E2E ΓÇ║ should delete the group
+
+    expected 204 "No Content", got 500 "Internal Server Error"
+
+      104 |             .delete(`${BASE_API_PATH}/${groupName}`)
+      105 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 106 |             .expect(204);
+          |              ^
+      107 |         
+      108 |         expect(userMgmtAdapterMock.adminDeleteGroup).toHaveBeenCalledWith(groupName);
+      109 |     });
+
+      at tests/e2e/group.admin.e2e.spec.ts:106:14
+      at tests/e2e/group.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/group.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/group.admin.e2e.spec.ts:100:46)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/e2e/user.admin.e2e.spec.ts (23.542 s)
+  ΓùÅ Console
+
+    console.log
+      Validation Middleware - req.body: {
+        body: {
+          username: 'test-user-1771847517625',
+          temporaryPassword: 'Password123!',
+          userAttributes: { email: 'test-user-1771847517625@example.com', name: 'Test User' }
+        }
+      }
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - Object.keys(req.body): [ 'body' ]
+
+      at src/api/middlewares/validation.middleware.ts:22:21
+
+    console.log
+      Validation Middleware - JSON.stringify(req.body): {"body":{"username":"test-user-1771847517625","temporaryPassword":"Password123!","userAttributes":{"email":"test-user-1771847517625@example.com","name":"Test User"}}}
+
+      at src/api/middlewares/validation.middleware.ts:23:21
+
+    console.log
+      Bypassing validation for CreateUserAdminSchema for debugging. Schema matched!
+
+      at src/api/middlewares/validation.middleware.ts:27:25
+
+    console.log
+      Validation Middleware - req.body: { groupName: 'test-group-1771847517626' }
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+    console.log
+      Validation Middleware - Object.keys(req.body): [ 'groupName' ]
+
+      at src/api/middlewares/validation.middleware.ts:22:21
+
+    console.log
+      Validation Middleware - JSON.stringify(req.body): {"groupName":"test-group-1771847517626"}
+
+      at src/api/middlewares/validation.middleware.ts:23:21
+
+    console.log
+      Validation Middleware - req.body: undefined
+
+      at src/api/middlewares/validation.middleware.ts:21:21
+
+  ΓùÅ User Admin E2E ΓÇ║ should create a new user
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    - Expected
+    + Received
+
+      Object {
+    +   "body": Object {
+          "temporaryPassword": "Password123!",
+          "userAttributes": Object {
+            "email": "test-user-1771847517625@example.com",
+            "name": "Test User",
+          },
+          "username": "test-user-1771847517625",
+    +   },
+      },
+
+    Number of calls: 1
+
+      53 |         expect(response.status).toBe(201); // Added explicit status check
+      54 |         expect(response.body.username).toBe(username);
+    > 55 |         expect(userMgmtAdapterMock.adminCreateUser).toHaveBeenCalledWith(userDetails);
+         |                                                     ^
+      56 |     });
+      57 |
+      58 |     it('should get the created user', async () => {
+
+      at tests/e2e/user.admin.e2e.spec.ts:55:53
+      at fulfilled (tests/e2e/user.admin.e2e.spec.ts:5:58)
+
+  ΓùÅ User Admin E2E ΓÇ║ should update the user attributes
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      81 |             .set('Authorization', `Bearer ${adminToken}`)
+      82 |             .send(attributesToUpdate)
+    > 83 |             .expect(204);
+         |              ^
+      84 |         
+      85 |         expect(userMgmtAdapterMock.adminUpdateUserAttributes).toHaveBeenCalledWith({ username, ...attributesToUpdate });
+      86 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:83:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:71:56)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should add a user to a group
+
+    expected 204 "No Content", got 200 "OK"
+
+       96 |             .set('Authorization', `Bearer ${adminToken}`)
+       97 |             .send({ groupName })
+    >  98 |             .expect(204);
+          |              ^
+       99 |         
+      100 |         expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledWith(username, groupName);
+      101 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:98:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:91:51)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should remove the user from the group
+
+    expected 204 "No Content", got 500 "Internal Server Error"
+
+      120 |             .delete(`${BASE_API_PATH}/${username}/groups/${groupName}`)
+      121 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 122 |             .expect(204);
+          |              ^
+      123 |         
+      124 |         expect(userMgmtAdapterMock.adminRemoveUserFromGroup).toHaveBeenCalledWith(username, groupName);
+      125 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:122:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:116:60)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should disable the user
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      131 |             .post(`${BASE_API_PATH}/${username}/disable`)
+      132 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 133 |             .expect(204);
+          |              ^
+      134 |         
+      135 |         expect(userMgmtAdapterMock.adminDisableUser).toHaveBeenCalledWith(username);
+      136 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:133:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:127:46)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should enable the user
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      142 |             .post(`${BASE_API_PATH}/${username}/enable`)
+      143 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 144 |             .expect(204);
+          |              ^
+      145 |         
+      146 |         expect(userMgmtAdapterMock.adminEnableUser).toHaveBeenCalledWith(username);
+      147 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:144:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:138:45)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+Test Suites: 2 failed, 2 total
+Tests:       10 failed, 5 passed, 15 total
+Snapshots:   0 total
+Time:        26.238 s, estimated 59 s
+Ran all test suites matching /e2e/i.
+Table TestAssignments deleted successfully. Waiting for it to be deleted...
+Table TestRoles deleted successfully. Waiting for it to be deleted...
+Table TestPermissions deleted successfully. Waiting for it to be deleted...
+Table TestUsers deleted successfully. Waiting for it to be deleted...
+Table TestPolicies deleted successfully. Waiting for it to be deleted...

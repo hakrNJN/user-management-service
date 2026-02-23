@@ -1,0 +1,271 @@
+[dotenv@17.2.1] injecting env (11) from .env.test -- tip: ≡ƒôí observe env with Radar: https://dotenvx.com/radar
+Table TestAssignments created successfully. Waiting for it to become active...
+Table TestUsers created successfully. Waiting for it to become active...
+Table TestPermissions created successfully. Waiting for it to become active...
+Table TestPolicies created successfully. Waiting for it to become active...
+Table TestRoles created successfully. Waiting for it to become active...
+FAIL tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts (7.679 s)
+  ΓùÅ Console
+
+    console.log
+      Table TestUsers already exists.
+
+      at tests/helpers/dynamodb.helper.ts:40:21
+          at Generator.throw (<anonymous>)
+
+    console.log
+      Table TestUsers cleared successfully.
+
+      at tests/helpers/dynamodb.helper.ts:89:13
+
+    console.log
+      Table TestUsers deleted successfully.
+
+      at tests/helpers/dynamodb.helper.ts:55:17
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should throw error when saving duplicate user profile (implement check in repo)
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should find an existing profile by ID
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should return null when finding non-existent profile by ID
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should find an existing profile by Email (assuming index exists)
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should return null when finding non-existent profile by Email
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should update an existing profile
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should throw error when updating non-existent profile (implement check)
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should delete an existing profile
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+  ΓùÅ DynamoUserProfileRepository Integration Tests ΓÇ║ should not throw when deleting non-existent profile (idempotent)
+
+    ValidationException: The provided key element does not match the schema
+
+      at throwDefaultError (node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:425:20)
+      at node_modules/.pnpm/@smithy+smithy-client@4.5.0/node_modules/@smithy/smithy-client/dist-cjs/index.js:434:5
+      at de_CommandError (node_modules/.pnpm/@aws-sdk+client-dynamodb@3.879.0/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)
+      at node_modules/.pnpm/@smithy+middleware-serde@4.0.9/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20
+      at node_modules/.pnpm/@aws-sdk+lib-dynamodb@3.879_ee4568148364d683af0669b014af13ba/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30
+      at node_modules/.pnpm/@smithy+core@3.9.0/node_modules/@smithy/core/dist-cjs/index.js:193:18
+      at node_modules/.pnpm/@smithy+middleware-retry@4.1.20/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38
+      at node_modules/.pnpm/@aws-sdk+middleware-logger@3.876.0/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22
+
+FAIL tests/e2e/user.admin.e2e.spec.ts (10.264 s)
+  ΓùÅ User Admin E2E ΓÇ║ should update the user attributes
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      81 |             .set('Authorization', `Bearer ${adminToken}`)
+      82 |             .send(attributesToUpdate)
+    > 83 |             .expect(204);
+         |              ^
+      84 |
+      85 |         expect(userMgmtAdapterMock.adminUpdateUserAttributes).toHaveBeenCalledWith({ username, ...attributesToUpdate });
+      86 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:83:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:71:56)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should add a user to a group
+
+    expected 204 "No Content", got 200 "OK"
+
+       96 |             .set('Authorization', `Bearer ${adminToken}`)
+       97 |             .send({ groupName })
+    >  98 |             .expect(204);
+          |              ^
+       99 |
+      100 |         expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledWith(username, groupName);
+      101 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:98:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:91:51)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should disable the user
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      131 |             .post(`${BASE_API_PATH}/${username}/disable`)
+      132 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 133 |             .expect(204);
+          |              ^
+      134 |
+      135 |         expect(userMgmtAdapterMock.adminDisableUser).toHaveBeenCalledWith(username);
+      136 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:133:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:127:46)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+  ΓùÅ User Admin E2E ΓÇ║ should enable the user
+
+    expected 204 "No Content", got 404 "Not Found"
+
+      142 |             .post(`${BASE_API_PATH}/${username}/enable`)
+      143 |             .set('Authorization', `Bearer ${adminToken}`)
+    > 144 |             .expect(204);
+          |              ^
+      145 |
+      146 |         expect(userMgmtAdapterMock.adminEnableUser).toHaveBeenCalledWith(username);
+      147 |     });
+
+      at tests/e2e/user.admin.e2e.spec.ts:144:14
+      at tests/e2e/user.admin.e2e.spec.ts:8:71
+      at Object.<anonymous>.__awaiter (tests/e2e/user.admin.e2e.spec.ts:4:12)
+      at Object.<anonymous> (tests/e2e/user.admin.e2e.spec.ts:138:45)
+      ----
+      at Test._assertStatus (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:309:14)
+      at node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/.pnpm/supertest@7.1.4/node_modules/supertest/lib/test.js:152:11)
+
+Test Suites: 2 failed, 2 total
+Tests:       13 failed, 6 passed, 19 total
+Snapshots:   0 total
+Time:        12.262 s, estimated 23 s
+Ran all test suites matching /tests\\e2e\\user.admin.e2e.spec.ts|tests\\integration\\Persistence\\DynamoUserProfileRepository.integration.spec.ts/i.
+Error deleting table TestUsers: ResourceInUseException: Attempt to change a resource which is still in use: Table is being deleted: TestUsers
+    at de_ResourceInUseExceptionRes (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2603:21)
+    at de_CommandError (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2296:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-serde@4.0.9\node_modules\@smithy\middleware-serde\dist-cjs\index.js:36:20
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+core@3.9.0\node_modules\@smithy\core\dist-cjs\index.js:193:18
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-retry@4.1.20\node_modules\@smithy\middleware-retry\dist-cjs\index.js:320:38
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+middleware-logger@3.876.0\node_modules\@aws-sdk\middleware-logger\dist-cjs\index.js:33:22 {
+  '$fault': 'client',
+  '$metadata': {
+    httpStatusCode: 400,
+    requestId: 'LKH0N4JVUBUR4DO1I5M0EUP08VVV4KQNSO5AEMVJF66Q9ASUAAJG',
+    extendedRequestId: undefined,
+    cfId: undefined,
+    attempts: 1,
+    totalRetryDelay: 0
+  },
+  __type: 'com.amazonaws.dynamodb.v20120810#ResourceInUseException'
+}
+ResourceInUseException: Attempt to change a resource which is still in use: Table is being deleted: TestUsers
+    at de_ResourceInUseExceptionRes (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2603:21)
+    at de_CommandError (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2296:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-serde@4.0.9\node_modules\@smithy\middleware-serde\dist-cjs\index.js:36:20
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+core@3.9.0\node_modules\@smithy\core\dist-cjs\index.js:193:18
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-retry@4.1.20\node_modules\@smithy\middleware-retry\dist-cjs\index.js:320:38
+    at async E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+middleware-logger@3.876.0\node_modules\@aws-sdk\middleware-logger\dist-cjs\index.js:33:22

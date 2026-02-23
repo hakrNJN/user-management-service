@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { createTestTable, deleteTestTable, destroyDynamoDBClient } from '../helpers/dynamodb.helper';
+import { createTestTable, deleteTestTable } from '../helpers/dynamodb.helper';
 import { persistenceContainer } from '../helpers/persistence.helper';
 import { IConfigService } from '@src/application/interfaces/IConfigService';
 import { TYPES } from '@src/shared/constants/types';
@@ -15,7 +15,15 @@ describe('DynamoDB Table Creation Debug Test', () => {
     beforeAll(async () => {
         configService = persistenceContainer.resolve<IConfigService>(TYPES.ConfigService);
         const tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
-        await createTestTable(tableName);
+        const keySchema = [
+            { AttributeName: 'PK', KeyType: 'HASH' },
+            { AttributeName: 'SK', KeyType: 'RANGE' }
+        ];
+        const attrDefs = [
+            { AttributeName: 'PK', AttributeType: 'S' },
+            { AttributeName: 'SK', AttributeType: 'S' }
+        ];
+        await createTestTable(tableName, keySchema, attrDefs, []);
 
         // Register the real repository implementation in our test container
         persistenceContainer.register<IRoleRepository>(TYPES.RoleRepository, {
@@ -26,7 +34,6 @@ describe('DynamoDB Table Creation Debug Test', () => {
     afterAll(async () => {
         const tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
         await deleteTestTable(tableName);
-        destroyDynamoDBClient();
         persistenceContainer.clearInstances();
     }, 30000);
 
@@ -44,11 +51,11 @@ describe('DynamoDB Table Creation Debug Test', () => {
 
     it('should create a role using DynamoRoleRepository', async () => {
         const roleRepository = persistenceContainer.resolve<IRoleRepository>(TYPES.RoleRepository);
-        const testRole = new Role('debug-role', 'Debug Role Description');
+        const testRole = new Role('test-tenant', 'debug-role', 'Debug Role Description');
         await expect(roleRepository.create(testRole)).resolves.not.toThrow();
 
         // Verify by fetching
-        const found = await roleRepository.findByName(testRole.roleName);
+        const found = await roleRepository.findByName('test-tenant', testRole.roleName);
         expect(found).toBeInstanceOf(Role);
         expect(found?.roleName).toBe(testRole.roleName);
     });

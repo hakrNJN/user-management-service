@@ -1,0 +1,54 @@
+src/application/services/group.admin.service.ts(50,26): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/group.admin.service.ts(74,26): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/group.admin.service.ts(95,61): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(34,70): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/application/services/policy.admin.service.ts(47,13): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/application/services/policy.admin.service.ts(98,13): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/application/services/policy.admin.service.ts(194,13): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/application/services/role.admin.service.ts(42,52): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/application/services/user.admin.service.ts(305,63): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(102,90): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(113,28): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(122,17): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(137,28): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(156,28): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(173,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(174,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(189,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(190,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(191,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(204,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(205,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(216,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(217,29): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(237,28): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(90,22): error TS2554: Expected 5-8 arguments, but got 4.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(91,22): error TS2554: Expected 5-8 arguments, but got 4.
+tests/integration/routes/permission.admin.routes.integration.spec.ts(196,31): error TS2554: Expected 2-5 arguments, but got 1.
+tests/integration/routes/permission.admin.routes.integration.spec.ts(196,53): error TS2554: Expected 2-5 arguments, but got 1.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(129,32): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(193,36): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(238,97): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(357,39): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(418,13): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(419,13): error TS2554: Expected 6-11 arguments, but got 5.
+tests/integration/routes/policy.admin.routes.integration.spec.ts(476,38): error TS2554: Expected 6-11 arguments, but got 5.
+tests/unit/api/controllers/group.admin.controller.spec.ts(46,34): error TS2554: Expected 7 arguments, but got 6.
+tests/unit/api/controllers/group.admin.controller.spec.ts(71,27): error TS2554: Expected 7 arguments, but got 6.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(52,140): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(77,72): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(104,79): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(148,72): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(174,75): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/api/controllers/policy.admin.controller.spec.ts(190,82): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/application/services/group.admin.service.spec.ts(129,27): error TS2554: Expected 7 arguments, but got 6.
+tests/unit/application/services/group.admin.service.spec.ts(130,60): error TS2345: Argument of type 'Date' is not assignable to parameter of type 'string'.
+tests/unit/application/services/group.admin.service.spec.ts(155,27): error TS2554: Expected 7 arguments, but got 6.
+tests/unit/application/services/group.admin.service.spec.ts(190,27): error TS2554: Expected 7 arguments, but got 6.
+tests/unit/application/services/policy.admin.service.spec.ts(26,77): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/application/services/policy.admin.service.spec.ts(135,89): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/application/services/policy.admin.service.spec.ts(147,93): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.spec.ts(30,92): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+tests/unit/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.spec.ts(68,89): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.

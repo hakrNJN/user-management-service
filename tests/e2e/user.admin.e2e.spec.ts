@@ -44,7 +44,7 @@ describe('User Admin E2E', () => {
         const response = await request(app)
             .post(BASE_API_PATH)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ body: userDetails }); // Re-added .expect(201) for now
+            .send(userDetails); // Re-added .expect(201) for now
 
         if (response.status !== 201) {
             console.log('Response Status:', response.status);
@@ -77,11 +77,11 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminUpdateUserAttributes.mockResolvedValue();
 
         await request(app)
-            .patch(`${BASE_API_PATH}/${username}/attributes`)
+            .put(`${BASE_API_PATH}/${username}/attributes`)
             .set('Authorization', `Bearer ${adminToken}`)
             .send(attributesToUpdate)
             .expect(204);
-        
+
         expect(userMgmtAdapterMock.adminUpdateUserAttributes).toHaveBeenCalledWith({ username, ...attributesToUpdate });
     });
 
@@ -95,8 +95,8 @@ describe('User Admin E2E', () => {
             .post(`${BASE_API_PATH}/${username}/groups`)
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ groupName })
-            .expect(204);
-        
+            .expect(200);
+
         expect(userMgmtAdapterMock.adminAddUserToGroup).toHaveBeenCalledWith(username, groupName);
     });
 
@@ -120,18 +120,18 @@ describe('User Admin E2E', () => {
             .delete(`${BASE_API_PATH}/${username}/groups/${groupName}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
-        
+
         expect(userMgmtAdapterMock.adminRemoveUserFromGroup).toHaveBeenCalledWith(username, groupName);
     });
 
     it('should disable the user', async () => {
         userMgmtAdapterMock.adminDisableUser.mockResolvedValue();
 
-        await request(app) 
-            .post(`${BASE_API_PATH}/${username}/disable`)
+        await request(app)
+            .put(`${BASE_API_PATH}/${username}/disable`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
-        
+
         expect(userMgmtAdapterMock.adminDisableUser).toHaveBeenCalledWith(username);
     });
 
@@ -139,10 +139,10 @@ describe('User Admin E2E', () => {
         userMgmtAdapterMock.adminEnableUser.mockResolvedValue();
 
         await request(app)
-            .post(`${BASE_API_PATH}/${username}/enable`)
+            .put(`${BASE_API_PATH}/${username}/reactivate`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .expect(204);
-        
+            .expect(200);
+
         expect(userMgmtAdapterMock.adminEnableUser).toHaveBeenCalledWith(username);
     });
 
@@ -153,7 +153,7 @@ describe('User Admin E2E', () => {
             .delete(`${BASE_API_PATH}/${username}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(204);
-        
+
         expect(userMgmtAdapterMock.adminDeleteUser).toHaveBeenCalledWith(username);
     });
 });

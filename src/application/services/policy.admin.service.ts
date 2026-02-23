@@ -1,5 +1,5 @@
 
-    import { inject, injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 import { Policy } from '../../domain/entities/Policy';
 import { PolicyNotFoundError } from '../../domain/exceptions/UserManagementError';
 import { TYPES } from '../../shared/constants/types';
@@ -40,6 +40,7 @@ export class PolicyAdminService implements IPolicyAdminService {
 
         const newPolicyId = uuidv4();
         const newPolicy = new Policy(
+            adminUser.tenantId,
             newPolicyId,
             details.policyName,
             details.policyDefinition,
@@ -66,7 +67,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.checkAdminPermission(adminUser, 'policy:read');
         this.logger.debug(`Admin attempting to get policy ID: ${policyId}`, { adminUserId: adminUser.id });
         try {
-            const policy = await this.policyRepository.findById(policyId);
+            const policy = await this.policyRepository.findById(adminUser.tenantId, policyId);
             if (!policy) {
                 this.logger.info(`Policy ID: ${policyId} not found.`, { adminUserId: adminUser.id });
                 return null;
@@ -83,7 +84,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.checkAdminPermission(adminUser, 'policy:update');
         this.logger.info(`Admin attempting to update policy ID: ${policyId}`, { adminUserId: adminUser.id, updateDetails: details });
 
-        const existingPolicy = await this.policyRepository.findById(policyId);
+        const existingPolicy = await this.policyRepository.findById(adminUser.tenantId, policyId);
         if (!existingPolicy) {
             this.logAuditEvent(adminUser, 'UPDATE_POLICY', 'POLICY', policyId, 'FAILURE', { reason: 'Policy not found' });
             throw new PolicyNotFoundError(`Policy with ID ${policyId} not found.`);
@@ -91,6 +92,7 @@ export class PolicyAdminService implements IPolicyAdminService {
 
         // Create a new version of the policy
         const newPolicy = new Policy(
+            adminUser.tenantId,
             existingPolicy.id, // Keep the same ID
             details.policyName ?? existingPolicy.policyName,
             details.policyDefinition ?? existingPolicy.policyDefinition,
@@ -118,7 +120,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.logger.info(`Admin attempting to delete policy ID: ${policyId}`, { adminUserId: adminUser.id });
 
         try {
-            await this.policyRepository.delete(policyId);
+            await this.policyRepository.delete(adminUser.tenantId, policyId);
             this.logAuditEvent(adminUser, 'DELETE_POLICY', 'POLICY', policyId, 'SUCCESS');
         } catch (error: any) {
             this.logAuditEvent(adminUser, 'DELETE_POLICY', 'POLICY', policyId, 'FAILURE', { error: error.message });
@@ -134,7 +136,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         try {
             // Assuming policyRepository.listPolicies exists and handles filtering/pagination
             // This might need to be implemented in DynamoPolicyRepository
-            const result = await this.policyRepository.list(options);
+            const result = await this.policyRepository.list(adminUser.tenantId, options);
             this.logger.info(`Admin successfully listed ${result.items.length} policies.`, { adminUserId: adminUser.id });
             return result;
         } catch (error: any) {
@@ -147,7 +149,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.debug(`Admin attempting to get policy version ${version} for policy ID: ${policyId}`, { adminUserId: adminUser.id });
         try {
-            const policy = await this.policyRepository.getPolicyVersion(policyId, version);
+            const policy = await this.policyRepository.getPolicyVersion(adminUser.tenantId, policyId, version);
             if (!policy) {
                 this.logger.info(`Policy version ${version} not found for policy ID: ${policyId}`, { adminUserId: adminUser.id });
                 return null;
@@ -164,7 +166,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.checkAdminPermission(adminUser);
         this.logger.debug(`Admin attempting to list all versions for policy ID: ${policyId}`, { adminUserId: adminUser.id });
         try {
-            const versions = await this.policyRepository.listPolicyVersions(policyId);
+            const versions = await this.policyRepository.listPolicyVersions(adminUser.tenantId, policyId);
             this.logger.info(`Admin successfully listed ${versions.length} versions for policy ID: ${policyId}`, { adminUserId: adminUser.id });
             return versions;
         } catch (error: any) {
@@ -178,7 +180,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         this.logger.info(`Admin attempting to roll back policy ${policyId} to version ${version}`, { adminUserId: adminUser.id });
 
         // 1. Get the policy version to roll back to
-        const policyToRollbackTo = await this.policyRepository.getPolicyVersion(policyId, version);
+        const policyToRollbackTo = await this.policyRepository.getPolicyVersion(adminUser.tenantId, policyId, version);
         if (!policyToRollbackTo) {
             this.logAuditEvent(adminUser, 'ROLLBACK_POLICY', 'POLICY', policyId, 'FAILURE', { version, reason: 'Policy version not found' });
             throw new PolicyNotFoundError(`Policy with ID ${policyId} and version ${version} not found.`);
@@ -187,6 +189,7 @@ export class PolicyAdminService implements IPolicyAdminService {
         // 2. Create a new Policy entity instance based on the old version
         const newPolicyId = uuidv4();
         const newPolicy = new Policy(
+            adminUser.tenantId,
             newPolicyId,
             policyToRollbackTo.policyName,
             policyToRollbackTo.policyDefinition,

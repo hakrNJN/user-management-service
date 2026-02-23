@@ -18,7 +18,7 @@ export class FirestoreUserProfileRepository implements IUserProfileRepository {
         throw new Error('Firestore findByEmail pending. Install firebase-admin.');
     }
 
-    async update(id: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    async update(tenantId: string, id: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
         throw new Error('Firestore update pending. Install firebase-admin.');
     }
 

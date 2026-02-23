@@ -47,7 +47,7 @@ export class GroupAdminService implements IGroupAdminService {
         try {
             const cognitoGroup = await this.userMgmtAdapter.adminCreateGroup(details);
             this.logAuditEvent(adminUser, 'CREATE_GROUP', 'GROUP', details.groupName, 'SUCCESS', { groupDetails: details });
-            return Group.fromCognitoGroup(cognitoGroup);
+            return Group.fromCognitoGroup(adminUser.tenantId, cognitoGroup);
         } catch (error: any) {
             this.logAuditEvent(adminUser, 'CREATE_GROUP', 'GROUP', details.groupName, 'FAILURE', { error: error.message });
             throw error;
@@ -71,7 +71,7 @@ export class GroupAdminService implements IGroupAdminService {
                 return null;
             }
             this.logger.info(`Admin successfully retrieved group ${groupName}`, { adminUserId: adminUser.id });
-            return Group.fromCognitoGroup(cognitoGroup);
+            return Group.fromCognitoGroup(adminUser.tenantId, cognitoGroup);
         } catch (error: any) {
             this.logger.error(`Admin failed to get group ${groupName}`, { adminUserId: adminUser.id, error });
             // Adapter returns null for NotFound, so only re-throw unexpected errors
@@ -92,7 +92,7 @@ export class GroupAdminService implements IGroupAdminService {
         this.logger.info(`Admin attempting to list groups`, { adminUserId: adminUser.id, limit, nextToken, filter, includeInactive });
         try {
             const result = await this.userMgmtAdapter.adminListGroups(limit, nextToken, filter);
-            let domainGroups = result.groups.map(g => Group.fromCognitoGroup(g));
+            let domainGroups = result.groups.map(g => Group.fromCognitoGroup(adminUser.tenantId, g));
 
             // Filter by status unless specified otherwise
             if (!includeInactive) {
@@ -147,7 +147,7 @@ export class GroupAdminService implements IGroupAdminService {
         }
 
         // Validate Custom Role exists
-        const role = await this.roleRepository.findByName(roleName);
+        const role = await this.roleRepository.findByName(adminUser.tenantId, roleName);
         if (!role) {
             this.logger.warn(`Assign role to group failed: Role '${roleName}' not found`, { adminUserId: adminUser.id, groupName });
             throw new RoleNotFoundError(roleName);
@@ -155,7 +155,7 @@ export class GroupAdminService implements IGroupAdminService {
 
         // Perform assignment
         try {
-            await this.assignmentRepository.assignRoleToGroup(groupName, roleName);
+            await this.assignmentRepository.assignRoleToGroup(adminUser.tenantId, groupName, roleName);
             this.logger.info(`Admin successfully assigned role '${roleName}' to group '${groupName}'`, { adminUserId: adminUser.id });
         } catch (error: any) {
             this.logger.error(`Admin failed to assign role '${roleName}' to group '${groupName}'`, { adminUserId: adminUser.id, error });
@@ -166,7 +166,7 @@ export class GroupAdminService implements IGroupAdminService {
     async removeRoleFromGroup(adminUser: AdminUser, groupName: string, roleName: string): Promise<void> {
         this.checkAdminPermission(adminUser, 'group:role:remove');
         try {
-            await this.assignmentRepository.removeRoleFromGroup(groupName, roleName);
+            await this.assignmentRepository.removeRoleFromGroup(adminUser.tenantId, groupName, roleName);
             this.logAuditEvent(adminUser, 'REMOVE_ROLE_FROM_GROUP', 'GROUP', groupName, 'SUCCESS', { role: roleName });
         } catch (error: any) {
             this.logAuditEvent(adminUser, 'REMOVE_ROLE_FROM_GROUP', 'GROUP', groupName, 'FAILURE', { role: roleName, error: error.message });
@@ -185,7 +185,7 @@ export class GroupAdminService implements IGroupAdminService {
         }
 
         try {
-            const roleNames = await this.assignmentRepository.findRolesByGroupName(groupName);
+            const roleNames = await this.assignmentRepository.findRolesByGroupName(adminUser.tenantId, groupName);
             this.logger.info(`Admin successfully listed ${roleNames.length} roles for group '${groupName}'`, { adminUserId: adminUser.id });
             return roleNames;
         } catch (error: any) {

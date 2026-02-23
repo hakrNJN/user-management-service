@@ -14,7 +14,7 @@ describe('UserAdminService', () => {
     let service: UserAdminService;
 
     const adminUser: AdminUser = {
-        id: 'admin-id',
+        id: 'admin-id', tenantId: 'test-tenant',
         username: 'admin-user',
         roles: ['admin'],
     };
@@ -278,7 +278,8 @@ describe('UserAdminService', () => {
 
     describe('Permissions', () => {
         it('should throw ForbiddenError if admin user does not have required role', async () => {
-            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const nonAdminUser: AdminUser = { id: 'non-admin', tenantId: 'test-tenant',
+    username: 'non-admin-user', roles: ['viewer'] };
             const userDetails: AdminCreateUserDetails = { username: 'test-user', temporaryPassword: 'Password123!', userAttributes: { email: 'test@example.com' } };
 
             await expect(service.createUser(nonAdminUser, userDetails)).rejects.toThrow(BaseError);

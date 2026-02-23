@@ -18,7 +18,7 @@ export class UserAdminService implements IUserAdminService {
     constructor(
         @inject(TYPES.UserMgmtAdapter) private userMgmtAdapter: IUserMgmtAdapter,
         @inject(TYPES.Logger) private logger: ILogger
-    ) {}
+    ) { }
 
     // Helper to check admin privileges (example)
     private checkAdminPermission(adminUser: AdminUser, requiredPermission: string): void {
@@ -65,7 +65,7 @@ export class UserAdminService implements IUserAdminService {
         try {
             const cognitoUser = await this.userMgmtAdapter.adminCreateUser(details);
             this.logAuditEvent(adminUser, 'CREATE_USER', 'USER', details.username, 'SUCCESS', { createdUser: cognitoUser });
-            return AdminUserView.fromCognitoUser(cognitoUser);
+            return AdminUserView.fromCognitoUser(adminUser.tenantId, cognitoUser);
         } catch (error: any) {
             this.logAuditEvent(adminUser, 'CREATE_USER', 'USER', details.username, 'FAILURE', { error: error.message });
             throw error;
@@ -93,7 +93,7 @@ export class UserAdminService implements IUserAdminService {
             const groupNames = groupsResult.groups.map(g => g.GroupName).filter((name): name is string => !!name);
 
             this.logger.info(`Admin successfully retrieved user`, { adminUserId: adminUser.id, targetUsername: username });
-            return AdminUserView.fromCognitoUser(cognitoUser, groupNames);
+            return AdminUserView.fromCognitoUser(adminUser.tenantId, cognitoUser, groupNames);
         } catch (error: any) {
             this.logger.error(`Admin failed to get user ${username}`, { adminUserId: adminUser.id, error });
             // Don't re-throw NotFoundError from adapter, return null as per interface
@@ -128,14 +128,14 @@ export class UserAdminService implements IUserAdminService {
             const userViews = await Promise.all(result.users.map(async u => {
                 const groupsResult = await this.userMgmtAdapter.adminListGroupsForUser(u.Username!);
                 const groupNames = groupsResult.groups.map(g => g.GroupName).filter((name): name is string => !!name);
-                return AdminUserView.fromCognitoUser(u, groupNames);
+                return AdminUserView.fromCognitoUser(adminUser.tenantId, u, groupNames);
             }));
 
             this.logger.info(`Admin successfully listed ${userViews.length} users`, { adminUserId: adminUser.id });
             return { users: userViews, nextToken: result.paginationToken };
         } catch (error: any) {
-             this.logger.error(`Admin failed to list users`, { adminUserId: adminUser.id, error });
-             throw error; // Re-throw adapter errors
+            this.logger.error(`Admin failed to list users`, { adminUserId: adminUser.id, error });
+            throw error; // Re-throw adapter errors
         }
     }
 
@@ -147,15 +147,15 @@ export class UserAdminService implements IUserAdminService {
      * @throws {Error} If an error occurs during attribute update.
      */
     async updateUserAttributes(adminUser: AdminUser, details: AdminUpdateUserAttributesDetails): Promise<void> {
-         this.checkAdminPermission(adminUser, 'user:update');
-         this.logger.info(`Admin attempting to update attributes for user ${details.username}`, { adminUserId: adminUser.id, attributes: Object.keys(details.attributesToUpdate) });
-         try {
+        this.checkAdminPermission(adminUser, 'user:update');
+        this.logger.info(`Admin attempting to update attributes for user ${details.username}`, { adminUserId: adminUser.id, attributes: Object.keys(details.attributesToUpdate) });
+        try {
             // Add validation: prevent updating critical attributes like 'sub'?
             await this.userMgmtAdapter.adminUpdateUserAttributes(details);
             this.logger.info(`Admin successfully updated attributes for user ${details.username}`, { adminUserId: adminUser.id });
         } catch (error: any) {
-             this.logger.error(`Admin failed to update attributes for user ${details.username}`, { adminUserId: adminUser.id, error });
-             throw error; // Re-throw adapter errors
+            this.logger.error(`Admin failed to update attributes for user ${details.username}`, { adminUserId: adminUser.id, error });
+            throw error; // Re-throw adapter errors
         }
     }
 
@@ -213,14 +213,14 @@ export class UserAdminService implements IUserAdminService {
      * @throws {Error} If an error occurs during password reset initiation.
      */
     async initiatePasswordReset(adminUser: AdminUser, username: string): Promise<void> {
-         this.checkAdminPermission(adminUser, 'user:password:reset');
-         this.logger.info(`Admin attempting to initiate password reset for user`, { adminUserId: adminUser.id, targetUsername: username });
-         try {
+        this.checkAdminPermission(adminUser, 'user:password:reset');
+        this.logger.info(`Admin attempting to initiate password reset for user`, { adminUserId: adminUser.id, targetUsername: username });
+        try {
             await this.userMgmtAdapter.adminInitiatePasswordReset(username);
             this.logger.info(`Admin successfully initiated password reset for user`, { adminUserId: adminUser.id, targetUsername: username });
         } catch (error: any) {
-             this.logger.error(`Admin failed to initiate password reset for user ${username}`, { adminUserId: adminUser.id, error });
-             throw error;
+            this.logger.error(`Admin failed to initiate password reset for user ${username}`, { adminUserId: adminUser.id, error });
+            throw error;
         }
     }
 
@@ -233,8 +233,8 @@ export class UserAdminService implements IUserAdminService {
      * @returns A promise that resolves when the password has been set.
      */
     async setUserPassword(adminUser: AdminUser, username: string, password: string, permanent: boolean): Promise<void> {
-         this.checkAdminPermission(adminUser, 'user:password:set');
-         try {
+        this.checkAdminPermission(adminUser, 'user:password:set');
+        try {
             await this.userMgmtAdapter.adminSetUserPassword(username, password, permanent);
             this.logAuditEvent(adminUser, 'SET_USER_PASSWORD', 'USER', username, 'SUCCESS');
         } catch (error: any) {
@@ -252,19 +252,19 @@ export class UserAdminService implements IUserAdminService {
      * @throws {Error} If an error occurs during adding the user to the group.
      */
     async addUserToGroup(adminUser: AdminUser, username: string, groupName: string): Promise<void> {
-         this.checkAdminPermission(adminUser, 'user:group:add');
-         this.logger.info(`Admin attempting to add user ${username} to group ${groupName}`, { adminUserId: adminUser.id });
-         try {
-             // Optional: Check if user already in group first? Adapter might throw error anyway.
+        this.checkAdminPermission(adminUser, 'user:group:add');
+        this.logger.info(`Admin attempting to add user ${username} to group ${groupName}`, { adminUserId: adminUser.id });
+        try {
+            // Optional: Check if user already in group first? Adapter might throw error anyway.
             await this.userMgmtAdapter.adminAddUserToGroup(username, groupName);
             this.logger.info(`Admin successfully added user ${username} to group ${groupName}.`);
         } catch (error: any) {
-             // Example: Catch specific error if adapter doesn't map it
-             if (error instanceof Error && error.message?.includes('User is already in group')) { // Check based on actual Cognito error message
-                 throw new UserAlreadyInGroupError(username, groupName);
-             }
-             this.logger.error(`Admin failed to add user ${username} to group ${groupName}`, { adminUserId: adminUser.id, error });
-             throw error;
+            // Example: Catch specific error if adapter doesn't map it
+            if (error instanceof Error && error.message?.includes('User is already in group')) { // Check based on actual Cognito error message
+                throw new UserAlreadyInGroupError(username, groupName);
+            }
+            this.logger.error(`Admin failed to add user ${username} to group ${groupName}`, { adminUserId: adminUser.id, error });
+            throw error;
         }
     }
 
@@ -277,14 +277,14 @@ export class UserAdminService implements IUserAdminService {
      * @throws {Error} If an error occurs during removing the user from the group.
      */
     async removeUserFromGroup(adminUser: AdminUser, username: string, groupName: string): Promise<void> {
-         this.checkAdminPermission(adminUser, 'user:group:remove');
-         this.logger.info(`Admin attempting to remove user ${username} from group ${groupName}`, { adminUserId: adminUser.id });
-         try {
+        this.checkAdminPermission(adminUser, 'user:group:remove');
+        this.logger.info(`Admin attempting to remove user ${username} from group ${groupName}`, { adminUserId: adminUser.id });
+        try {
             await this.userMgmtAdapter.adminRemoveUserFromGroup(username, groupName);
             this.logger.info(`Admin successfully removed user ${username} from group ${groupName}.`);
         } catch (error: any) {
-             this.logger.error(`Admin failed to remove user ${username} from group ${groupName}`, { adminUserId: adminUser.id, error });
-             throw error;
+            this.logger.error(`Admin failed to remove user ${username} from group ${groupName}`, { adminUserId: adminUser.id, error });
+            throw error;
         }
     }
 
@@ -302,12 +302,12 @@ export class UserAdminService implements IUserAdminService {
         this.logger.info(`Admin attempting to list groups for user`, { adminUserId: adminUser.id, targetUsername: username });
         try {
             const result = await this.userMgmtAdapter.adminListGroupsForUser(username, limit, nextToken);
-            const domainGroups = result.groups.map(g => Group.fromCognitoGroup(g));
+            const domainGroups = result.groups.map(g => Group.fromCognitoGroup(adminUser.tenantId, g));
             this.logger.info(`Admin successfully listed ${domainGroups.length} groups for user ${username}`, { adminUserId: adminUser.id });
             return { groups: domainGroups, nextToken: result.nextToken };
         } catch (error: any) {
-             this.logger.error(`Admin failed to list groups for user ${username}`, { adminUserId: adminUser.id, error });
-             throw error;
+            this.logger.error(`Admin failed to list groups for user ${username}`, { adminUserId: adminUser.id, error });
+            throw error;
         }
     }
 
@@ -325,13 +325,13 @@ export class UserAdminService implements IUserAdminService {
         this.logger.info(`Admin attempting to list users in group`, { adminUserId: adminUser.id, groupName });
         try {
             const result = await this.userMgmtAdapter.adminListUsersInGroup(groupName, limit, nextToken);
-            const userViews = result.users.map(u => AdminUserView.fromCognitoUser(u));
+            const userViews = result.users.map(u => AdminUserView.fromCognitoUser(adminUser.tenantId, u));
             // TODO: Consider fetching groups for each user if needed (can be slow)
             this.logger.info(`Admin successfully listed ${userViews.length} users in group ${groupName}`, { adminUserId: adminUser.id });
             return { users: userViews, nextToken: result.nextToken };
         } catch (error: any) {
-             this.logger.error(`Admin failed to list users in group ${groupName}`, { adminUserId: adminUser.id, error });
-             throw error;
+            this.logger.error(`Admin failed to list users in group ${groupName}`, { adminUserId: adminUser.id, error });
+            throw error;
         }
     }
 

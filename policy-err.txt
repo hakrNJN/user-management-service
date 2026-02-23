@@ -1,0 +1,38 @@
+[dotenv@17.2.1] injecting env (11) from .env.test -- tip: ≡ƒ¢á∩╕Å  run anywhere with `dotenvx run -- yourcommand`
+Table TestUsers created successfully. Waiting for it to become active...
+Table TestPermissions created successfully. Waiting for it to become active...
+Table TestAssignments created successfully. Waiting for it to become active...
+Table TestPolicies created successfully. Waiting for it to become active...
+Table TestRoles created successfully. Waiting for it to become active...
+Test Suites: 1 skipped, 0 of 1 total
+Tests:       39 skipped, 39 total
+Snapshots:   0 total
+Time:        6.767 s, estimated 13 s
+Ran all test suites matching /tests\\integration\\routes\\policy.admin.routes.integration.spec.ts/i with tests matching "PUT /api/admin/policies/:policyId ΓÇ║ should return 200".
+Error deleting table TestUsers: ResourceInUseException: Attempt to change a resource which is still in use: Table is being deleted: TestUsers
+    at de_ResourceInUseExceptionRes (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2603:21)
+    at de_CommandError (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2296:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-serde@4.0.9\node_modules\@smithy\middleware-serde\dist-cjs\index.js:36:20
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+core@3.9.0\node_modules\@smithy\core\dist-cjs\index.js:193:18
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-retry@4.1.20\node_modules\@smithy\middleware-retry\dist-cjs\index.js:320:38
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+middleware-logger@3.876.0\node_modules\@aws-sdk\middleware-logger\dist-cjs\index.js:33:22 {
+  '$fault': 'client',
+  '$metadata': {
+    httpStatusCode: 400,
+    requestId: 'IDV3SS1OHPG2H7ALC2ML1J9NSJVV4KQNSO5AEMVJF66Q9ASUAAJG',
+    extendedRequestId: undefined,
+    cfId: undefined,
+    attempts: 1,
+    totalRetryDelay: 0
+  },
+  __type: 'com.amazonaws.dynamodb.v20120810#ResourceInUseException'
+}
+ResourceInUseException: Attempt to change a resource which is still in use: Table is being deleted: TestUsers
+    at de_ResourceInUseExceptionRes (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2603:21)
+    at de_CommandError (E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+client-dynamodb@3.879.0\node_modules\@aws-sdk\client-dynamodb\dist-cjs\index.js:2296:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-serde@4.0.9\node_modules\@smithy\middleware-serde\dist-cjs\index.js:36:20
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+core@3.9.0\node_modules\@smithy\core\dist-cjs\index.js:193:18
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@smithy+middleware-retry@4.1.20\node_modules\@smithy\middleware-retry\dist-cjs\index.js:320:38
+    at E:\NodeJS\PBAC_Auth\user-management-service\node_modules\.pnpm\@aws-sdk+middleware-logger@3.876.0\node_modules\@aws-sdk\middleware-logger\dist-cjs\index.js:33:22

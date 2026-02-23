@@ -18,13 +18,13 @@ describe('PermissionAdminService', () => {
     let loggerMock: jest.Mocked<ILogger>;
 
     const adminUser: AdminUser = {
-        id: 'admin-id',
+        id: 'admin-id', tenantId: 'test-tenant',
         username: 'admin-user',
         roles: ['admin'],
     };
 
     const permissionName = 'test-permission';
-    const permissionEntity = new Permission(permissionName, 'A test permission');
+    const permissionEntity = new Permission('test-tenant', permissionName, 'A test permission');
 
     beforeEach(() => {
         permissionRepoMock = {
@@ -85,7 +85,7 @@ describe('PermissionAdminService', () => {
 
             const result = await service.getPermission(adminUser, permissionName);
 
-            expect(permissionRepoMock.findByName).toHaveBeenCalledWith(permissionName);
+            expect(permissionRepoMock.findByName).toHaveBeenCalledWith('test-tenant', permissionName);
             expect(result).toEqual(permissionEntity);
         });
 
@@ -105,7 +105,7 @@ describe('PermissionAdminService', () => {
 
             const result = await service.listPermissions(adminUser, {});
 
-            expect(permissionRepoMock.list).toHaveBeenCalledWith({});
+            expect(permissionRepoMock.list).toHaveBeenCalledWith('test-tenant', {});
             expect(result).toEqual(permissions);
         });
     });
@@ -113,12 +113,12 @@ describe('PermissionAdminService', () => {
     describe('updatePermission', () => {
         it('should update a permission successfully', async () => {
             const updates = { description: 'Updated description' };
-            const updatedPermission = new Permission(permissionName, updates.description);
+            const updatedPermission = new Permission('test-tenant', permissionName, updates.description);
             permissionRepoMock.update.mockResolvedValue(updatedPermission);
 
             const result = await service.updatePermission(adminUser, permissionName, updates);
 
-            expect(permissionRepoMock.update).toHaveBeenCalledWith(permissionName, updates);
+            expect(permissionRepoMock.update).toHaveBeenCalledWith('test-tenant', permissionName, updates);
             expect(result).toEqual(updatedPermission);
         });
     });
@@ -130,8 +130,8 @@ describe('PermissionAdminService', () => {
 
             await service.deletePermission(adminUser, permissionName);
 
-            expect(permissionRepoMock.delete).toHaveBeenCalledWith(permissionName);
-            expect(assignmentRepoMock.removeAllAssignmentsForPermission).toHaveBeenCalledWith(permissionName);
+            expect(permissionRepoMock.delete).toHaveBeenCalledWith('test-tenant', permissionName);
+            expect(assignmentRepoMock.removeAllAssignmentsForPermission).toHaveBeenCalledWith('test-tenant', permissionName);
         });
 
         it('should throw PermissionNotFoundError if permission does not exist', async () => {
@@ -170,7 +170,10 @@ describe('PermissionAdminService', () => {
 
     describe('Permissions', () => {
         it('should throw ForbiddenError if admin user does not have required role', async () => {
-            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const nonAdminUser: AdminUser = {
+                id: 'non-admin', tenantId: 'test-tenant',
+                username: 'non-admin-user', roles: ['viewer']
+            };
             const details = { permissionName: 'new-permission' };
 
             await expect(service.createPermission(nonAdminUser, details)).rejects.toThrow(BaseError);

@@ -1,0 +1,2 @@
+tests/unit/api/middlewares/admin.auth.guard.middleware.spec.ts(26,28): error TS2353: Object literal may only specify known properties, and 'tenantId' does not exist in type 'AuthenticatedUser'.
+tests/unit/api/middlewares/admin.auth.guard.middleware.spec.ts(32,28): error TS2353: Object literal may only specify known properties, and 'tenantId' does not exist in type 'AuthenticatedUser'.

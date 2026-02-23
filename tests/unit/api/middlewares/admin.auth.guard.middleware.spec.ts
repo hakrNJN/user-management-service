@@ -25,7 +25,7 @@ describe('AdminAuthGuardMiddleware', () => {
     const decodedPayloadWithRole: AuthenticatedUser = {
         id: 'user-id-123',
         username: 'testuser',
-        attributes: { 'cognito:username': 'testuser', 'cognito:groups': [requiredRole], sub: 'user-id-123' },
+        attributes: { 'cognito:username': 'testuser', 'cognito:groups': [requiredRole], sub: 'user-id-123', 'custom:tenantId': 'test-tenant' },
         roles: [requiredRole],
     };
     const decodedPayloadWithoutRole: AuthenticatedUser = {
@@ -69,6 +69,7 @@ describe('AdminAuthGuardMiddleware', () => {
 
         expect(req.adminUser).toBeDefined();
         expect(req.adminUser?.id).toBe(decodedPayloadWithRole.id);
+        expect(req.adminUser?.tenantId).toBe('test-tenant');
         expect(req.adminUser?.username).toBe(decodedPayloadWithRole.username);
         expect(req.adminUser?.roles).toEqual([requiredRole]);
         expect(next).toHaveBeenCalledTimes(1);

@@ -18,7 +18,7 @@ export class MongoUserProfileRepository implements IUserProfileRepository {
         throw new Error('Mongo findByEmail pending.');
     }
 
-    async update(id: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    async update(tenantId: string, id: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
         throw new Error('Mongo update pending.');
     }
 

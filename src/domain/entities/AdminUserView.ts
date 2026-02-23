@@ -6,6 +6,7 @@ import { AttributeType, UserStatusType } from "@aws-sdk/client-cognito-identity-
  */
 export class AdminUserView {
     constructor(
+        public readonly tenantId: string,
         public readonly userId: string, // Typically the 'sub' attribute
         public readonly username: string,
         public readonly status: UserStatusType | string, // e.g., CONFIRMED, UNCONFIRMED, ARCHIVED, UNKNOWN
@@ -18,7 +19,7 @@ export class AdminUserView {
         public readonly updatedAt: Date,
         public readonly attributes: Record<string, string>, // All other attributes
         public readonly groups: string[] = [] // Groups the user belongs to
-    ) {}
+    ) { }
 
     /**
      * Factory method to create an AdminUserView instance from Cognito's UserType.
@@ -26,7 +27,7 @@ export class AdminUserView {
      * @param userGroups - Optional array of group names the user belongs to.
      * @returns An instance of AdminUserView.
      */
-    public static fromCognitoUser(cognitoUser: {
+    public static fromCognitoUser(tenantId: string, cognitoUser: {
         Username?: string;
         Attributes?: AttributeType[];
         UserStatus?: UserStatusType | string;
@@ -68,10 +69,11 @@ export class AdminUserView {
         // Use 'sub' as primary ID, fallback to username if 'sub' is missing (shouldn't happen normally)
         const finalUserId = userId ?? cognitoUser.Username ?? 'unknown-id';
         if (!userId && cognitoUser.Username) {
-             console.warn(`Cognito user missing 'sub' attribute, using username as ID: ${cognitoUser.Username}`);
+            console.warn(`Cognito user missing 'sub' attribute, using username as ID: ${cognitoUser.Username}`);
         }
 
         return new AdminUserView(
+            tenantId,
             finalUserId,
             cognitoUser.Username ?? 'unknown-username',
             cognitoUser.UserStatus ?? 'UNKNOWN',

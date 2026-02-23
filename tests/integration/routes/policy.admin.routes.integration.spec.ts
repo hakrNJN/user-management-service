@@ -126,7 +126,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
 
     describe(`GET ${BASE_API_PATH}/:policyId`, () => {
         const targetPolicyId = 'a1b2c3d4-e5f6-7890-1234-567890abcdef';
-        const mockPolicyData = new Policy(targetPolicyId, 'get.policy', 'def', 'rego', 1);
+        const mockPolicyData = new Policy('test-tenant', targetPolicyId, 'get.policy', 'def', 'rego', 1);
 
         it('should return 200 OK with policy data if policy exists', async () => {
             mockPolicyAdminService.getPolicy.mockResolvedValueOnce(mockPolicyData);
@@ -189,53 +189,52 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
     });
 
     describe(`GET ${BASE_API_PATH}`, () => {
-         it('should return 200 OK with a list of policies', async () => {
-             const mockPolicies = [new Policy('id1', 'policy1', 'def1', 'rego', 1)]; // Using Policy entity directly
-             mockPolicyAdminService.listPolicies.mockResolvedValueOnce({ items: mockPolicies, lastEvaluatedKey: undefined });
-             await request(app)
-                 .get(BASE_API_PATH)
-                 .set(MOCK_AUTH_HEADER)
-                 .expect(HttpStatusCode.OK); // 200
-             expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
-             expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledWith(expect.anything(), { limit: undefined, language: undefined, startKey: undefined });
-         });
+        it('should return 200 OK with a list of policies', async () => {
+            const mockPolicies = [new Policy('test-tenant', 'id1', 'policy1', 'def1', 'rego', 1)]; // Using Policy entity directly
+            mockPolicyAdminService.listPolicies.mockResolvedValueOnce({ items: mockPolicies, lastEvaluatedKey: undefined });
+            await request(app)
+                .get(BASE_API_PATH)
+                .set(MOCK_AUTH_HEADER)
+                .expect(HttpStatusCode.OK); // 200
+            expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
+            expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledWith(expect.anything(), { limit: undefined, language: undefined, startKey: undefined });
+        });
 
-          it('should pass pagination and filter parameters to the service', async () => {
-             mockPolicyAdminService.listPolicies.mockResolvedValueOnce({ items: [], nextToken: 'more-policies' } as any); // Use nextToken if API uses it
-             await request(app)
-                 .get(BASE_API_PATH)
-                 .query({ limit: 15, language: 'rego', startKey: 'opaqueStartKey' })
-                 .set(MOCK_AUTH_HEADER)
-                 .expect(HttpStatusCode.OK); // 200
-             expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
-             expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledWith(expect.anything(), { limit: '15', language: 'rego', startKey: 'opaqueStartKey' });
-         });
+        it('should pass pagination and filter parameters to the service', async () => {
+            mockPolicyAdminService.listPolicies.mockResolvedValueOnce({ items: [], nextToken: 'more-policies' } as any); // Use nextToken if API uses it
+            await request(app)
+                .get(BASE_API_PATH)
+                .query({ limit: 15, language: 'rego', startKey: 'opaqueStartKey' })
+                .set(MOCK_AUTH_HEADER)
+                .expect(HttpStatusCode.OK); // 200
+            expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
+            expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledWith(expect.anything(), { limit: '15', language: 'rego', startKey: 'opaqueStartKey' });
+        });
 
-         it('should return 500 if the service fails unexpectedly', async () => {
-             const genericError = new Error('Cannot list policies');
-             mockPolicyAdminService.listPolicies.mockRejectedValueOnce(genericError);
-             await request(app)
-                 .get(BASE_API_PATH)
-                 .set(MOCK_AUTH_HEADER)
-                 .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
-             expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
-         });
+        it('should return 500 if the service fails unexpectedly', async () => {
+            const genericError = new Error('Cannot list policies');
+            mockPolicyAdminService.listPolicies.mockRejectedValueOnce(genericError);
+            await request(app)
+                .get(BASE_API_PATH)
+                .set(MOCK_AUTH_HEADER)
+                .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
+            expect(mockPolicyAdminService.listPolicies).toHaveBeenCalledTimes(1);
+        });
 
-         it('should return 401 Unauthorized if token is missing', async () => {
-             await request(app)
-                 .get(BASE_API_PATH)
-                 .expect(HttpStatusCode.UNAUTHORIZED); // 401
-             expect(mockPolicyAdminService.listPolicies).not.toHaveBeenCalled();
-         });
+        it('should return 401 Unauthorized if token is missing', async () => {
+            await request(app)
+                .get(BASE_API_PATH)
+                .expect(HttpStatusCode.UNAUTHORIZED); // 401
+            expect(mockPolicyAdminService.listPolicies).not.toHaveBeenCalled();
+        });
     });
 
-     describe(`PUT ${BASE_API_PATH}/:policyId`, () => {
+    describe(`PUT ${BASE_API_PATH}/:policyId`, () => {
         const targetPolicyId = 'a1b2c3d4-e5f6-7890-1234-567890abcdef'; // Using a valid UUID
         const MOCK_VALID_UPDATE_POLICY_PAYLOAD = {
-            description: 'Updated Integration Description',
-            version: 2,
+            description: 'Updated Integration Description'
         };
-        const updatedPolicy = new Policy(targetPolicyId, 'updated.name', 'updated def', 'rego', MOCK_VALID_UPDATE_POLICY_PAYLOAD.version, MOCK_VALID_UPDATE_POLICY_PAYLOAD.description);
+        const updatedPolicy = new Policy('test-tenant', targetPolicyId, 'updated.name', 'updated def', 'rego', 2, MOCK_VALID_UPDATE_POLICY_PAYLOAD.description);
 
         it('should return 200 OK with updated policy data if service succeeds', async () => {
             mockPolicyAdminService.updatePolicy.mockResolvedValueOnce(updatedPolicy);
@@ -247,12 +246,12 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
                 .expect(res => {
                     expect(res.body.id).toBe(targetPolicyId);
                     expect(res.body.description).toBe(MOCK_VALID_UPDATE_POLICY_PAYLOAD.description);
-                    expect(res.body.version).toBe(MOCK_VALID_UPDATE_POLICY_PAYLOAD.version);
+                    expect(res.body.version).toBe(2);
                 });
             expect(mockPolicyAdminService.updatePolicy).toHaveBeenCalledWith(expect.anything(), targetPolicyId, MOCK_VALID_UPDATE_POLICY_PAYLOAD);
         });
 
-         it('should return 404 Not Found if service throws PolicyNotFoundError', async () => {
+        it('should return 404 Not Found if service throws PolicyNotFoundError', async () => {
             const { PolicyNotFoundError } = require('../../../src/domain/exceptions/UserManagementError');
             const notFoundError = new PolicyNotFoundError(targetPolicyId);
             mockPolicyAdminService.updatePolicy.mockRejectedValueOnce(notFoundError);
@@ -264,7 +263,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
             expect(mockPolicyAdminService.updatePolicy).toHaveBeenCalledTimes(1);
         });
 
-         it('should return 400 Bad Request if policyId param is invalid', async () => {
+        it('should return 400 Bad Request if policyId param is invalid', async () => {
             await request(app)
                 .put(`${BASE_API_PATH}/invalid-uuid`)
                 .set(MOCK_AUTH_HEADER)
@@ -273,27 +272,27 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
             expect(mockPolicyAdminService.updatePolicy).not.toHaveBeenCalled();
         });
 
-         it('should return 400 Bad Request if payload is invalid (e.g., empty)', async () => {
-             await request(app)
+        it('should return 400 Bad Request if payload is invalid (e.g., empty)', async () => {
+            await request(app)
                 .put(`${BASE_API_PATH}/${targetPolicyId}`)
                 .set(MOCK_AUTH_HEADER)
                 .send({}) // Empty payload might fail validation
                 .expect(HttpStatusCode.BAD_REQUEST); // 400
-             expect(mockPolicyAdminService.updatePolicy).not.toHaveBeenCalled();
-         });
+            expect(mockPolicyAdminService.updatePolicy).not.toHaveBeenCalled();
+        });
 
-         it('should return 500 if service fails unexpectedly', async () => {
-             const genericError = new Error('Update policy internal failure');
-             mockPolicyAdminService.updatePolicy.mockRejectedValueOnce(genericError);
-             await request(app)
-                 .put(`${BASE_API_PATH}/${targetPolicyId}`)
-                 .set(MOCK_AUTH_HEADER)
-                 .send(MOCK_VALID_UPDATE_POLICY_PAYLOAD)
-                 .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
-             expect(mockPolicyAdminService.updatePolicy).toHaveBeenCalledTimes(1);
-         });
+        it('should return 500 if service fails unexpectedly', async () => {
+            const genericError = new Error('Update policy internal failure');
+            mockPolicyAdminService.updatePolicy.mockRejectedValueOnce(genericError);
+            await request(app)
+                .put(`${BASE_API_PATH}/${targetPolicyId}`)
+                .set(MOCK_AUTH_HEADER)
+                .send(MOCK_VALID_UPDATE_POLICY_PAYLOAD)
+                .expect(HttpStatusCode.INTERNAL_SERVER_ERROR); // 500
+            expect(mockPolicyAdminService.updatePolicy).toHaveBeenCalledTimes(1);
+        });
 
-         it('should return 401 Unauthorized if token is missing', async () => {
+        it('should return 401 Unauthorized if token is missing', async () => {
             await request(app)
                 .put(`${BASE_API_PATH}/${targetPolicyId}`)
                 .send(MOCK_VALID_UPDATE_POLICY_PAYLOAD)
@@ -302,7 +301,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
         });
     });
 
-     describe(`DELETE ${BASE_API_PATH}/:policyId`, () => {
+    describe(`DELETE ${BASE_API_PATH}/:policyId`, () => {
         const targetPolicyId = 'b1c2d3e4-f5a6-7890-1234-567890abcdef'; // Using a valid UUID
 
         it('should return 204 No Content if service succeeds', async () => {
@@ -325,7 +324,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
             expect(mockPolicyAdminService.deletePolicy).toHaveBeenCalledWith(expect.anything(), targetPolicyId);
         });
 
-         it('should return 400 Bad Request if policyId param is invalid', async () => {
+        it('should return 400 Bad Request if policyId param is invalid', async () => {
             await request(app)
                 .delete(`${BASE_API_PATH}/invalid-uuid`)
                 .set(MOCK_AUTH_HEADER)
@@ -354,7 +353,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
     describe(`GET ${BASE_API_PATH}/:policyId/versions/:version`, () => {
         const policyId = 'c1d2e3f4-a5b6-7890-1234-567890abcdef'; // Valid UUID
         const version = 1;
-        const mockPolicyVersionData = new Policy(policyId, 'version.policy', 'def', 'rego', version);
+        const mockPolicyVersionData = new Policy('test-tenant', policyId, 'version.policy', 'def', 'rego', version);
 
         it('should return 200 OK with policy version data if found', async () => {
             mockPolicyAdminService.getPolicyVersion.mockResolvedValueOnce(mockPolicyVersionData);
@@ -415,8 +414,8 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
     describe(`GET ${BASE_API_PATH}/:policyId/versions`, () => {
         const policyId = 'd1e2f3a4-b5c6-7890-1234-567890abcdef'; // Valid UUID
         const mockPolicyVersions = [
-            new Policy(policyId, 'policy.v1', 'def', 'rego', 1),
-            new Policy(policyId, 'policy.v2', 'def', 'rego', 2),
+            new Policy('test-tenant', policyId, 'policy.v1', 'def', 'rego', 1),
+            new Policy('test-tenant', policyId, 'policy.v2', 'def', 'rego', 2),
         ];
 
         it('should return 200 OK with a list of policy versions', async () => {
@@ -473,7 +472,7 @@ describe(`Integration Tests: Policy Admin Routes (${BASE_API_PATH})`, () => {
     describe(`POST ${BASE_API_PATH}/:policyId/rollback`, () => {
         const policyId = 'e1f2a3b4-c5d6-7890-1234-567890abcdef'; // Valid UUID
         const version = 1;
-        const mockRolledBackPolicy = new Policy(policyId, 'rolled.back.policy', 'def', 'rego', version);
+        const mockRolledBackPolicy = new Policy('test-tenant', policyId, 'rolled.back.policy', 'def', 'rego', version);
 
         it('should return 200 OK with rolled back policy data on success', async () => {
             mockPolicyAdminService.rollbackPolicy.mockResolvedValueOnce(mockRolledBackPolicy);

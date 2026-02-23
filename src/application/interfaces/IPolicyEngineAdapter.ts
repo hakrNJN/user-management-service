@@ -22,7 +22,7 @@ export interface IPolicyEngineAdapter {
      * @returns A promise resolving to the policy definition string, or null if not found by the adapter.
      * @throws {PolicyEngineAdapterError | BaseError}
      */
-    getPolicyDefinition(policyId: string): Promise<string | null>;
+    getPolicyDefinition(tenantId: string, policyId: string): Promise<string | null>;
 
     /**
      * Deletes a policy definition from the underlying engine/storage.
@@ -30,7 +30,7 @@ export interface IPolicyEngineAdapter {
      * @returns A promise resolving when the deletion is complete.
      * @throws {PolicyEngineAdapterError | BaseError}
      */
-    deletePolicyDefinition(policyId: string): Promise<void>;
+    deletePolicyDefinition(tenantId: string, policyId: string): Promise<void>;
 
     /**
      * Validates the syntax of a given policy code string for a specific language.

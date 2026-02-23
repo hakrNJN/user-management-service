@@ -19,7 +19,7 @@ describe('PolicyAdminController', () => {
     let res: MockProxy<Response>;
     let next: MockProxy<NextFunction>;
 
-    const adminUser: AdminUser = { id: 'admin-id', username: 'admin', roles: ['admin'] };
+    const adminUser: AdminUser = { id: 'admin-id', tenantId: 'test-tenant', username: 'admin', roles: ['admin'] };
 
     beforeEach(() => {
         policyAdminServiceMock = mock<IPolicyAdminService>();
@@ -49,7 +49,7 @@ describe('PolicyAdminController', () => {
         it('should create a policy and return 201 status', async () => {
             const policyDetails = { policyName: 'new-policy', policyDefinition: 'def', policyLanguage: 'rego' };
             req.body = policyDetails;
-            const createdPolicy = new Policy('id', policyDetails.policyName, policyDetails.policyDefinition, policyDetails.policyLanguage, 1, '', {}, new Date(), new Date(), true);
+            const createdPolicy = new Policy('test-tenant', 'id', policyDetails.policyName, policyDetails.policyDefinition, policyDetails.policyLanguage, 1, '', {}, new Date(), new Date(), true);
             policyAdminServiceMock.createPolicy.mockResolvedValue(createdPolicy);
 
             await controller.createPolicy(req, res, next);
@@ -74,7 +74,7 @@ describe('PolicyAdminController', () => {
         it('should get a policy and return 200 status', async () => {
             const policyId = 'policy-id';
             req.params = { policyId };
-            const policy = new Policy(policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true);
+            const policy = new Policy('test-tenant', policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true);
             policyAdminServiceMock.getPolicy.mockResolvedValue(policy);
 
             await controller.getPolicy(req, res, next);
@@ -101,7 +101,7 @@ describe('PolicyAdminController', () => {
             const updates = { description: 'updated' };
             req.params = { policyId };
             req.body = updates;
-            const updatedPolicy = new Policy(policyId, 'name', 'def', 'rego', 2, 'updated', {}, new Date(), new Date(), true);
+            const updatedPolicy = new Policy('test-tenant', policyId, 'name', 'def', 'rego', 2, 'updated', {}, new Date(), new Date(), true);
             policyAdminServiceMock.updatePolicy.mockResolvedValue(updatedPolicy);
 
             await controller.updatePolicy(req, res, next);
@@ -145,7 +145,7 @@ describe('PolicyAdminController', () => {
             const policyId = 'policy-id';
             const version = '1';
             req.params = { policyId, version };
-            const policy = new Policy(policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true);
+            const policy = new Policy('test-tenant', policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true);
             policyAdminServiceMock.getPolicyVersion.mockResolvedValue(policy);
 
             await controller.getPolicyVersion(req, res, next);
@@ -171,7 +171,7 @@ describe('PolicyAdminController', () => {
         it('should list all policy versions and return 200 status', async () => {
             const policyId = 'policy-id';
             req.params = { policyId };
-            const versions = [new Policy(policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true)];
+            const versions = [new Policy('test-tenant', policyId, 'name', 'def', 'rego', 1, '', {}, new Date(), new Date(), true)];
             policyAdminServiceMock.listPolicyVersions.mockResolvedValue(versions);
 
             await controller.listPolicyVersions(req, res, next);
@@ -187,7 +187,7 @@ describe('PolicyAdminController', () => {
             const policyId = 'policy-id';
             const version = '1';
             req.params = { policyId, version };
-            const rolledBackPolicy = new Policy(policyId, 'name', 'def', 'rego', 2, '', {}, new Date(), new Date(), true);
+            const rolledBackPolicy = new Policy('test-tenant', policyId, 'name', 'def', 'rego', 2, '', {}, new Date(), new Date(), true);
             policyAdminServiceMock.rollbackPolicy.mockResolvedValue(rolledBackPolicy);
 
             await controller.rollbackPolicy(req, res, next);

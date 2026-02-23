@@ -8,13 +8,14 @@ export type GroupStatus = 'ACTIVE' | 'INACTIVE';
  */
 export class Group {
     constructor(
+        public readonly tenantId: string,
         public readonly groupName: string,
         public description: string,
         public status: GroupStatus,
         public readonly precedence: number | undefined,
         public readonly creationDate: Date | undefined,
         public readonly lastModifiedDate: Date | undefined
-    ) {}
+    ) { }
 
     /**
      * Factory method to create a Group instance from Cognito's GroupType.
@@ -23,7 +24,7 @@ export class Group {
      * The description is expected to be a JSON string like: {"description":"Sales Team","status":"ACTIVE"}
      * If parsing fails, it defaults to the original description and an 'ACTIVE' status for backward compatibility.
      */
-    public static fromCognitoGroup(cognitoGroup: CognitoGroupType): Group {
+    public static fromCognitoGroup(tenantId: string, cognitoGroup: CognitoGroupType): Group {
         let description = cognitoGroup.Description ?? '';
         let status: GroupStatus = 'ACTIVE';
 
@@ -40,6 +41,7 @@ export class Group {
         }
 
         return new Group(
+            tenantId,
             cognitoGroup.GroupName ?? 'unknown-group',
             description,
             status,

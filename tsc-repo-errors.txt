@@ -1,0 +1,159 @@
+src/application/services/group.admin.service.ts(150,48): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/group.admin.service.ts(158,45): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/group.admin.service.ts(169,45): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/group.admin.service.ts(188,63): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(50,64): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(67,65): error TS2345: Argument of type 'QueryOptions | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/application/services/permission.admin.service.ts(80,71): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/permission.admin.service.ts(100,55): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(115,45): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(131,60): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/permission.admin.service.ts(138,63): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/policy.admin.service.ts(70,56): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/policy.admin.service.ts(87,60): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/policy.admin.service.ts(123,41): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/policy.admin.service.ts(139,61): error TS2345: Argument of type '(QueryOptions & { language?: string | undefined; }) | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/application/services/policy.admin.service.ts(152,56): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/policy.admin.service.ts(169,58): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/policy.admin.service.ts(183,64): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/PolicyService.ts(21,54): error TS2554: Expected 1 arguments, but got 0.
+src/application/services/role.admin.service.ts(61,52): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(79,59): error TS2345: Argument of type 'QueryOptions | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/application/services/role.admin.service.ts(92,59): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/role.admin.service.ts(112,49): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(127,45): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(145,48): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(152,60): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(159,45): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/role.admin.service.ts(174,45): error TS2554: Expected 3 arguments, but got 2.
+src/application/services/role.admin.service.ts(187,48): error TS2554: Expected 2 arguments, but got 1.
+src/application/services/role.admin.service.ts(194,69): error TS2554: Expected 2 arguments, but got 1.
+src/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.ts(48,56): error TS2554: Expected 2 arguments, but got 1.
+src/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.ts(65,57): error TS2554: Expected 2 arguments, but got 1.
+src/infrastructure/persistence/firestore/FirestoreUserProfileRepository.ts(21,11): error TS2416: Property 'update' in type 'FirestoreUserProfileRepository' is not assignable to the same property in base type 'IUserProfileRepository'.
+  Type '(id: string, updates: Partial<UserProfile>) => Promise<UserProfile | null>' is not assignable to type '(tenantId: string, id: string, updates: Partial<UserProfile>) => Promise<UserProfile | null>'.
+    Types of parameters 'updates' and 'id' are incompatible.
+      Type 'string' has no properties in common with type 'Partial<UserProfile>'.
+src/infrastructure/persistence/mongo/MongoUserProfileRepository.ts(21,11): error TS2416: Property 'update' in type 'MongoUserProfileRepository' is not assignable to the same property in base type 'IUserProfileRepository'.
+  Type '(id: string, updates: Partial<UserProfile>) => Promise<UserProfile | null>' is not assignable to type '(tenantId: string, id: string, updates: Partial<UserProfile>) => Promise<UserProfile | null>'.
+    Types of parameters 'updates' and 'id' are incompatible.
+      Type 'string' has no properties in common with type 'Partial<UserProfile>'.
+tests/debug/dynamodb.debug.spec.ts(58,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(80,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(83,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(90,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(92,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(95,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(97,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(105,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(106,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(108,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(117,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(118,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(120,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(127,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(133,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(142,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(144,56): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(152,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(154,54): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(157,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(159,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(168,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(169,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(171,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(181,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(183,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(191,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(193,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(196,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(198,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(207,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(208,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(210,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(220,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(222,56): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(230,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(232,54): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(235,43): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(237,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(246,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(247,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(249,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(261,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(262,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(265,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(267,54): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(271,43): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(274,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(277,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(288,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(289,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(292,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(298,43): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(301,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(314,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(317,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(320,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(324,54): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(326,49): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(328,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(332,43): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(335,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(338,45): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(341,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(352,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(355,36): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(359,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(361,48): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(365,43): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(368,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoAssignmentRepository.integration.spec.ts(371,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(71,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(84,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(90,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(97,56): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(102,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(107,56): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(113,52): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(115,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(120,52): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPermissionRepository.integration.spec.ts(128,56): error TS2345: Argument of type '{ limit: number; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(106,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(128,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(139,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(146,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(158,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(165,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(177,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(195,56): error TS2345: Argument of type '{ limit: number; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(208,56): error TS2345: Argument of type '{ language: string; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(221,57): error TS2345: Argument of type '{ limit: number; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(226,57): error TS2345: Argument of type '{ limit: number; startKey: Record<string, any> | undefined; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(239,52): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(243,50): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoPolicyRepository.integration.spec.ts(250,52): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(66,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(81,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(87,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(94,50): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(101,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(107,50): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(113,46): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(117,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(122,46): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoRoleRepository.integration.spec.ts(131,50): error TS2345: Argument of type '{ limit: number; }' is not assignable to parameter of type 'string'.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(97,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(113,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(119,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(125,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(132,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(139,44): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(141,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(151,44): error TS2554: Expected 3 arguments, but got 2.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(156,44): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(157,51): error TS2554: Expected 2 arguments, but got 1.
+tests/integration/Persistence/DynamoUserProfileRepository.integration.spec.ts(163,44): error TS2554: Expected 2 arguments, but got 1.

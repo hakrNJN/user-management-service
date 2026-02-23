@@ -27,7 +27,7 @@ describe('DynamoDbPolicyEngineAdapter', () => {
 
     // --- publishPolicy Tests ---
     describe('publishPolicy', () => {
-        const mockPolicy = new Policy('policy-id', 'test-policy', 'rule { true }', 'rego', 1, '', {}, new Date(), new Date(), true);
+        const mockPolicy = new Policy('test-tenant', 'policy-id', 'test-policy', 'rule { true }', 'rego', 1, '', {}, new Date(), new Date(), true);
 
         beforeEach(() => {
             // Only mock validatePolicySyntax for publishPolicy tests
@@ -65,14 +65,14 @@ describe('DynamoDbPolicyEngineAdapter', () => {
     // --- getPolicyDefinition Tests ---
     describe('getPolicyDefinition', () => {
         const policyId = 'policy-id';
-        const mockPolicy = new Policy(policyId, 'test-policy', 'rule { true }', 'rego', 1, '', {}, new Date(), new Date(), true);
+        const mockPolicy = new Policy('test-tenant', policyId, 'test-policy', 'rule { true }', 'rego', 1, '', {}, new Date(), new Date(), true);
 
         it('should return policy definition if found', async () => {
             policyRepositoryMock.findById.mockResolvedValue(mockPolicy);
 
-            const result = await adapter.getPolicyDefinition(policyId);
+            const result = await adapter.getPolicyDefinition('test-tenant', policyId);
 
-            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(result).toBe(mockPolicy.policyDefinition);
             expect(loggerMock.debug).toHaveBeenCalledWith(expect.stringContaining('Successfully retrieved policy definition'));
         });
@@ -80,9 +80,9 @@ describe('DynamoDbPolicyEngineAdapter', () => {
         it('should return null if policy not found', async () => {
             policyRepositoryMock.findById.mockResolvedValue(null);
 
-            const result = await adapter.getPolicyDefinition(policyId);
+            const result = await adapter.getPolicyDefinition('test-tenant', policyId);
 
-            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.findById).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(result).toBeNull();
             expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining('Policy definition not found'));
         });
@@ -91,7 +91,7 @@ describe('DynamoDbPolicyEngineAdapter', () => {
             const dbError = new Error('DB error');
             policyRepositoryMock.findById.mockRejectedValue(dbError);
 
-            await expect(adapter.getPolicyDefinition(policyId)).rejects.toBeInstanceOf(PolicyEngineAdapterError);
+            await expect(adapter.getPolicyDefinition('test-tenant', policyId)).rejects.toBeInstanceOf(PolicyEngineAdapterError);
             expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('Error retrieving policy definition'), expect.any(Object));
         });
     });
@@ -103,16 +103,16 @@ describe('DynamoDbPolicyEngineAdapter', () => {
         it('should delete policy and log success', async () => {
             policyRepositoryMock.delete.mockResolvedValue(true);
 
-            await adapter.deletePolicyDefinition(policyId);
+            await adapter.deletePolicyDefinition('test-tenant', policyId);
 
-            expect(policyRepositoryMock.delete).toHaveBeenCalledWith(policyId);
+            expect(policyRepositoryMock.delete).toHaveBeenCalledWith(expect.any(String), policyId);
             expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('Successfully deleted policy definition'));
         });
 
         it('should throw PolicyNotFoundError if policy not found by repository', async () => {
             policyRepositoryMock.delete.mockResolvedValue(false);
 
-            await expect(adapter.deletePolicyDefinition(policyId)).rejects.toBeInstanceOf(PolicyNotFoundError);
+            await expect(adapter.deletePolicyDefinition('test-tenant', policyId)).rejects.toBeInstanceOf(PolicyNotFoundError);
             expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('Error deleting policy definition'), expect.any(Object));
         });
 
@@ -120,7 +120,7 @@ describe('DynamoDbPolicyEngineAdapter', () => {
             const dbError = new Error('DB error');
             policyRepositoryMock.delete.mockRejectedValue(dbError);
 
-            await expect(adapter.deletePolicyDefinition(policyId)).rejects.toBeInstanceOf(PolicyEngineAdapterError);
+            await expect(adapter.deletePolicyDefinition('test-tenant', policyId)).rejects.toBeInstanceOf(PolicyEngineAdapterError);
             expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('Error deleting policy definition'), expect.any(Object));
         });
     });

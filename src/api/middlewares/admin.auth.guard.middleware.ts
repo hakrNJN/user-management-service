@@ -49,6 +49,7 @@ export const createAdminAuthGuardMiddleware = (
             // --- Attach Admin User Context ---
             req.adminUser = {
                 id: decodedPayload.id,
+                tenantId: decodedPayload.attributes?.['custom:tenantId'] || 'unknown-tenant',
                 username: decodedPayload.username,
                 roles: userRoles,
                 attributes: decodedPayload.attributes,

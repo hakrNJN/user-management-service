@@ -121,7 +121,7 @@ describe(`Integration Tests: Role Admin Routes (${BASE_API_PATH})`, () => {
 
     describe(`GET ${BASE_API_PATH}`, () => {
          it('should return 200 OK with a list of roles', async () => {
-             const mockRoles = [new Role('role1', 'def1')];
+             const mockRoles = [new Role('test-tenant', 'role1', 'def1')];
              mockRoleAdminService.listRoles.mockResolvedValueOnce({ items: mockRoles, lastEvaluatedKey: undefined });
              await request(app)
                  .get(BASE_API_PATH)
@@ -134,7 +134,7 @@ describe(`Integration Tests: Role Admin Routes (${BASE_API_PATH})`, () => {
 
     describe(`GET ${BASE_API_PATH}/:roleName`, () => {
         const targetRoleName = 'test-role';
-        const mockRoleData = new Role(targetRoleName, 'get role');
+        const mockRoleData = new Role('test-tenant', targetRoleName, 'get role');
 
         it('should return 200 OK with role data if role exists', async () => {
             mockRoleAdminService.getRole.mockResolvedValueOnce(mockRoleData);
@@ -171,7 +171,7 @@ describe(`Integration Tests: Role Admin Routes (${BASE_API_PATH})`, () => {
         const MOCK_VALID_UPDATE_ROLE_PAYLOAD = {
             description: 'Updated Integration Description',
         };
-        const updatedRole = new Role(targetRoleName, MOCK_VALID_UPDATE_ROLE_PAYLOAD.description);
+        const updatedRole = new Role('test-tenant', targetRoleName, MOCK_VALID_UPDATE_ROLE_PAYLOAD.description);
 
         it('should return 200 OK with updated role data if service succeeds', async () => {
             mockRoleAdminService.updateRole.mockResolvedValueOnce(updatedRole);

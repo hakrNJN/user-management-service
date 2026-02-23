@@ -111,157 +111,157 @@ describe(`Integration Tests: Permission Admin Routes (${BASE_API_PATH})`, () => 
                 .set(MOCK_AUTH_HEADER)
                 .send(MOCK_VALID_CREATE_PERMISSION_PAYLOAD)
                 .expect(HttpStatusCode.CREATED) // 201
-               .expect('Content-Type', /json/);
+                .expect('Content-Type', /json/);
 
-               expect(response.body).toHaveProperty('permissionName', mockCreatedPermission.permissionName);
-               expect(response.body.description).toEqual(mockCreatedPermission.description);
+            expect(response.body).toHaveProperty('permissionName', mockCreatedPermission.permissionName);
+            expect(response.body.description).toEqual(mockCreatedPermission.description);
             expect(mockPermissionAdminService.createPermission).toHaveBeenCalledTimes(1);
         });
 
         it('should return 400 on validation error (e.g., missing permissionName)', async () => {
-             const invalidPayload = { description: 'Only description' };
-             const response = await request(app)
+            const invalidPayload = { description: 'Only description' };
+            const response = await request(app)
                 .post(BASE_API_PATH)
                 .set(MOCK_AUTH_HEADER)
                 .send(invalidPayload);
 
-             expect(response.status).toBe(400);
-             expect(response.body.name).toBe('ValidationError');
-             expect(response.body.details).toEqual({'body.permissionName': 'Permission name is required'});
-             expect(mockPermissionAdminService.createPermission).not.toHaveBeenCalled();
+            expect(response.status).toBe(400);
+            expect(response.body.name).toBe('ValidationError');
+            expect(response.body.details).toEqual({ 'permissionName': 'Permission name is required' });
+            expect(mockPermissionAdminService.createPermission).not.toHaveBeenCalled();
         });
 
-         it('should return 409 if permission already exists', async () => {
-             const { PermissionExistsError } = require('../../../src/domain/exceptions/UserManagementError');
-             const error = new PermissionExistsError(MOCK_VALID_CREATE_PERMISSION_PAYLOAD.permissionName);
-             mockPermissionAdminService.createPermission.mockRejectedValue(error);
+        it('should return 409 if permission already exists', async () => {
+            const { PermissionExistsError } = require('../../../src/domain/exceptions/UserManagementError');
+            const error = new PermissionExistsError(MOCK_VALID_CREATE_PERMISSION_PAYLOAD.permissionName);
+            mockPermissionAdminService.createPermission.mockRejectedValue(error);
 
-             const response = await request(app)
-                 .post(BASE_API_PATH)
-                 .set(MOCK_AUTH_HEADER)
-                 .send(MOCK_VALID_CREATE_PERMISSION_PAYLOAD);
+            const response = await request(app)
+                .post(BASE_API_PATH)
+                .set(MOCK_AUTH_HEADER)
+                .send(MOCK_VALID_CREATE_PERMISSION_PAYLOAD);
 
-             expect(response.status).toBe(409);
-             expect(response.body.name).toBe('PermissionExistsError');
-         });
+            expect(response.status).toBe(409);
+            expect(response.body.name).toBe('PermissionExistsError');
+        });
 
-         it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app)
-                 .post(BASE_API_PATH)
-                 // No Auth header
-                 .send(MOCK_VALID_CREATE_PERMISSION_PAYLOAD);
-             expect(response.status).toBe(401);
-         });
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app)
+                .post(BASE_API_PATH)
+                // No Auth header
+                .send(MOCK_VALID_CREATE_PERMISSION_PAYLOAD);
+            expect(response.status).toBe(401);
+        });
     });
 
     // --- GET /api/admin/permissions/:permissionName ---
     describe('GET /api/admin/permissions/:permissionName', () => {
         const permName = 'perm:read';
-        const existingPerm = new Permission(permName, 'Read permission');
+        const existingPerm = new Permission('test-tenant', permName, 'Read permission');
 
         it('should return 200 and the permission if found', async () => {
-             mockPermissionAdminService.getPermission.mockResolvedValue(existingPerm);
-             const response = await request(app)
-                 .get(`${BASE_API_PATH}/${permName}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
+            mockPermissionAdminService.getPermission.mockResolvedValue(existingPerm);
+            const response = await request(app)
+                .get(`${BASE_API_PATH}/${permName}`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
 
-             expect(response.status).toBe(200);
-             expect(response.body.permissionName).toBe(permName);
-             expect(mockPermissionAdminService.getPermission).toHaveBeenCalledWith(
-                 expect.objectContaining({ id: 'test-admin-id-123' }),
-                 permName
-             );
+            expect(response.status).toBe(200);
+            expect(response.body.permissionName).toBe(permName);
+            expect(mockPermissionAdminService.getPermission).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'test-admin-id-123' }),
+                permName
+            );
         });
 
-         it('should return 404 if permission not found', async () => {
-             mockPermissionAdminService.getPermission.mockResolvedValue(null);
-             const response = await request(app)
-                 .get(`${BASE_API_PATH}/not-found-perm`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
+        it('should return 404 if permission not found', async () => {
+            mockPermissionAdminService.getPermission.mockResolvedValue(null);
+            const response = await request(app)
+                .get(`${BASE_API_PATH}/not-found-perm`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
 
-             expect(response.status).toBe(404);
-             // Check based on controller's response or NotFoundError handling in middleware
-             expect(response.body.message).toContain('not found');
-         });
+            expect(response.status).toBe(404);
+            // Check based on controller's response or NotFoundError handling in middleware
+            expect(response.body.message).toContain('not found');
+        });
 
-          it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app).get(`${BASE_API_PATH}/${permName}`);
-             expect(response.status).toBe(401);
-         });
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app).get(`${BASE_API_PATH}/${permName}`);
+            expect(response.status).toBe(401);
+        });
     });
 
-     // --- GET /api/admin/permissions ---
-     describe('GET /api/admin/permissions', () => {
+    // --- GET /api/admin/permissions ---
+    describe('GET /api/admin/permissions', () => {
         it('should return 200 and list of permissions', async () => {
-            const permList = [new Permission('p1'), new Permission('p2')];
+            const permList = [new Permission('test-tenant', 'p1'), new Permission('test-tenant', 'p2')];
             const queryResult = { items: permList, lastEvaluatedKey: undefined };
-             mockPermissionAdminService.listPermissions.mockResolvedValue(queryResult);
+            mockPermissionAdminService.listPermissions.mockResolvedValue(queryResult);
 
-             const response = await request(app)
-                 .get(`${BASE_API_PATH}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN)
-                 .query({ limit: 10 }); // Example query param
+            const response = await request(app)
+                .get(`${BASE_API_PATH}`)
+                .set('Authorization', TEST_ADMIN_TOKEN)
+                .query({ limit: 10 }); // Example query param
 
-             expect(response.status).toBe(200);
-             expect(response.body.items).toHaveLength(2);
-             expect(response.body.items[0].permissionName).toBe('p1');
-             expect(mockPermissionAdminService.listPermissions).toHaveBeenCalledWith(
-                 expect.objectContaining({ id: 'test-admin-id-123' }),
-                 { limit: 10, startKey: undefined } // Check options parsing
-             );
+            expect(response.status).toBe(200);
+            expect(response.body.items).toHaveLength(2);
+            expect(response.body.items[0].permissionName).toBe('p1');
+            expect(mockPermissionAdminService.listPermissions).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'test-admin-id-123' }),
+                { limit: 10, startKey: undefined } // Check options parsing
+            );
         });
 
-         // Add tests for pagination query params if implemented
-          it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app).get(`${BASE_API_PATH}`);
-             expect(response.status).toBe(401);
-         });
+        // Add tests for pagination query params if implemented
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app).get(`${BASE_API_PATH}`);
+            expect(response.status).toBe(401);
+        });
     });
 
-     // --- PUT /api/admin/permissions/:permissionName ---
+    // --- PUT /api/admin/permissions/:permissionName ---
     describe('PUT /api/admin/permissions/:permissionName', () => {
-         const permName = 'perm:update';
-         const validPayload = { description: 'Updated description' };
-         const updatedPerm = new Permission(permName, validPayload.description);
+        const permName = 'perm:update';
+        const validPayload = { description: 'Updated description' };
+        const updatedPerm = new Permission('test-tenant', permName, validPayload.description);
 
-         it('should return 200 and updated permission on success', async () => {
-             mockPermissionAdminService.updatePermission.mockResolvedValue(updatedPerm);
-             const response = await request(app)
-                 .put(`${BASE_API_PATH}/${permName}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN)
-                 .send(validPayload);
+        it('should return 200 and updated permission on success', async () => {
+            mockPermissionAdminService.updatePermission.mockResolvedValue(updatedPerm);
+            const response = await request(app)
+                .put(`${BASE_API_PATH}/${permName}`)
+                .set('Authorization', TEST_ADMIN_TOKEN)
+                .send(validPayload);
 
-             expect(response.status).toBe(200);
-             expect(response.body.permissionName).toBe(permName);
-             expect(response.body.description).toBe(validPayload.description);
-             expect(mockPermissionAdminService.updatePermission).toHaveBeenCalledWith(
-                 expect.objectContaining({ id: 'test-admin-id-123' }),
-                 permName,
-                 validPayload
-             );
-         });
+            expect(response.status).toBe(200);
+            expect(response.body.permissionName).toBe(permName);
+            expect(response.body.description).toBe(validPayload.description);
+            expect(mockPermissionAdminService.updatePermission).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'test-admin-id-123' }),
+                permName,
+                validPayload
+            );
+        });
 
-         it('should return 404 if permission not found for update', async () => {
-             mockPermissionAdminService.updatePermission.mockResolvedValue(null);
-             const response = await request(app)
-                 .put(`${BASE_API_PATH}/not-found-perm`)
-                 .set('Authorization', TEST_ADMIN_TOKEN)
-                 .send(validPayload);
-             expect(response.status).toBe(404);
-         });
+        it('should return 404 if permission not found for update', async () => {
+            mockPermissionAdminService.updatePermission.mockResolvedValue(null);
+            const response = await request(app)
+                .put(`${BASE_API_PATH}/not-found-perm`)
+                .set('Authorization', TEST_ADMIN_TOKEN)
+                .send(validPayload);
+            expect(response.status).toBe(404);
+        });
 
-         it('should return 400 on validation error (e.g., empty body)', async () => {
-             const response = await request(app)
-                 .put(`${BASE_API_PATH}/${permName}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN)
-                 .send({}); // Empty body might fail validation
-             expect(response.status).toBe(400);
-             expect(response.body.name).toBe('ValidationError');
-         });
-          it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app).put(`${BASE_API_PATH}/${permName}`).send(validPayload);
-             expect(response.status).toBe(401);
-         });
+        it('should return 400 on validation error (e.g., empty body)', async () => {
+            const response = await request(app)
+                .put(`${BASE_API_PATH}/${permName}`)
+                .set('Authorization', TEST_ADMIN_TOKEN)
+                .send({}); // Empty body might fail validation
+            expect(response.status).toBe(400);
+            expect(response.body.name).toBe('ValidationError');
+        });
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app).put(`${BASE_API_PATH}/${permName}`).send(validPayload);
+            expect(response.status).toBe(401);
+        });
     });
 
     // --- DELETE /api/admin/permissions/:permissionName ---
@@ -269,32 +269,32 @@ describe(`Integration Tests: Permission Admin Routes (${BASE_API_PATH})`, () => 
         const permName = 'perm:delete';
 
         it('should return 204 on successful deletion', async () => {
-             mockPermissionAdminService.deletePermission.mockResolvedValue(undefined);
-             const response = await request(app)
-                 .delete(`${BASE_API_PATH}/${permName}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
+            mockPermissionAdminService.deletePermission.mockResolvedValue(undefined);
+            const response = await request(app)
+                .delete(`${BASE_API_PATH}/${permName}`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
 
-             expect(response.status).toBe(204);
-             expect(mockPermissionAdminService.deletePermission).toHaveBeenCalledWith(
-                 expect.objectContaining({ id: 'test-admin-id-123' }),
-                 permName
-             );
+            expect(response.status).toBe(204);
+            expect(mockPermissionAdminService.deletePermission).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'test-admin-id-123' }),
+                permName
+            );
         });
 
-         it('should return 404 if permission not found for deletion', async () => {
-             const { PermissionNotFoundError } = require('../../../src/domain/exceptions/UserManagementError');
-             const error = new PermissionNotFoundError(permName);
-             mockPermissionAdminService.deletePermission.mockRejectedValue(error);
-             const response = await request(app)
-                 .delete(`${BASE_API_PATH}/${permName}`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
-             expect(response.status).toBe(404);
-         });
+        it('should return 404 if permission not found for deletion', async () => {
+            const { PermissionNotFoundError } = require('../../../src/domain/exceptions/UserManagementError');
+            const error = new PermissionNotFoundError(permName);
+            mockPermissionAdminService.deletePermission.mockRejectedValue(error);
+            const response = await request(app)
+                .delete(`${BASE_API_PATH}/${permName}`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
+            expect(response.status).toBe(404);
+        });
 
-         it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app).delete(`${BASE_API_PATH}/${permName}`);
-             expect(response.status).toBe(401);
-         });
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app).delete(`${BASE_API_PATH}/${permName}`);
+            expect(response.status).toBe(401);
+        });
     });
 
     // --- GET /api/admin/permissions/:permissionName/roles ---
@@ -303,31 +303,31 @@ describe(`Integration Tests: Permission Admin Routes (${BASE_API_PATH})`, () => 
         const roles = ['role-a', 'role-b'];
 
         it('should return 200 and list of role names', async () => {
-             mockPermissionAdminService.listRolesForPermission.mockResolvedValue(roles);
-             const response = await request(app)
-                 .get(`${BASE_API_PATH}/${permName}/roles`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
+            mockPermissionAdminService.listRolesForPermission.mockResolvedValue(roles);
+            const response = await request(app)
+                .get(`${BASE_API_PATH}/${permName}/roles`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
 
-             expect(response.status).toBe(200);
-             expect(response.body).toEqual({ roles });
-             expect(mockPermissionAdminService.listRolesForPermission).toHaveBeenCalledWith(
-                 expect.objectContaining({ id: 'test-admin-id-123' }),
-                 permName
-             );
+            expect(response.status).toBe(200);
+            expect(response.body).toEqual({ roles });
+            expect(mockPermissionAdminService.listRolesForPermission).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'test-admin-id-123' }),
+                permName
+            );
         });
 
         it('should return 404 if permission is not found', async () => {
             const { PermissionNotFoundError } = require('../../../src/domain/exceptions/UserManagementError');
             const error = new PermissionNotFoundError(permName);
             mockPermissionAdminService.listRolesForPermission.mockRejectedValue(error);
-             const response = await request(app)
-                 .get(`${BASE_API_PATH}/${permName}/roles`)
-                 .set('Authorization', TEST_ADMIN_TOKEN);
-             expect(response.status).toBe(404);
+            const response = await request(app)
+                .get(`${BASE_API_PATH}/${permName}/roles`)
+                .set('Authorization', TEST_ADMIN_TOKEN);
+            expect(response.status).toBe(404);
         });
-         it('should return 401 if token is invalid/missing', async () => {
-             const response = await request(app).get(`${BASE_API_PATH}/${permName}/roles`);
-             expect(response.status).toBe(401);
-         });
+        it('should return 401 if token is invalid/missing', async () => {
+            const response = await request(app).get(`${BASE_API_PATH}/${permName}/roles`);
+            expect(response.status).toBe(401);
+        });
     });
 });

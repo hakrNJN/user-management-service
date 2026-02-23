@@ -56,14 +56,14 @@ describe('DynamoRoleRepository Integration Tests - Minimal', () => {
         await clearTestTable(tableName, tableKeySchema);
     });
 
-    const testRole1 = new Role('int-test-role-1', 'Integration Test Role 1');
-    const testRole2 = new Role('int-test-role-2', 'Integration Test Role 2');
+    const testRole1 = new Role('test-tenant', 'int-test-role-1', 'Integration Test Role 1');
+    const testRole2 = new Role('test-tenant', 'int-test-role-2', 'Integration Test Role 2');
 
     it('should create a new role', async () => {
         await expect(roleRepository.create(testRole1)).resolves.not.toThrow();
 
         // Verify by fetching
-        const found = await roleRepository.findByName(testRole1.roleName);
+        const found = await roleRepository.findByName('test-tenant', testRole1.roleName);
         expect(found).toBeInstanceOf(Role);
         expect(found?.roleName).toBe(testRole1.roleName);
         expect(found?.description).toBe(testRole1.description);
@@ -78,48 +78,48 @@ describe('DynamoRoleRepository Integration Tests - Minimal', () => {
 
     it('should find an existing role by name', async () => {
         await expect(roleRepository.create(testRole1)).resolves.not.toThrow();
-        const found = await roleRepository.findByName(testRole1.roleName);
+        const found = await roleRepository.findByName('test-tenant', testRole1.roleName);
         expect(found).toBeInstanceOf(Role);
         expect(found?.roleName).toBe(testRole1.roleName);
     });
 
     it('should return null when finding a non-existent role', async () => {
-        const found = await roleRepository.findByName('non-existent-role');
+        const found = await roleRepository.findByName('test-tenant', 'non-existent-role');
         expect(found).toBeNull();
     });
 
     it('should update an existing role', async () => {
         await expect(roleRepository.create(testRole1)).resolves.not.toThrow();
         const updates = { description: 'Updated Description' };
-        const updatedRole = await roleRepository.update(testRole1.roleName, updates);
+        const updatedRole = await roleRepository.update('test-tenant', testRole1.roleName, updates);
 
         expect(updatedRole).toBeInstanceOf(Role);
         expect(updatedRole?.description).toBe('Updated Description');
         expect(updatedRole?.updatedAt).not.toEqual(testRole1.updatedAt); // UpdatedAt should change
 
         // Verify by fetching again
-        const found = await roleRepository.findByName(testRole1.roleName);
+        const found = await roleRepository.findByName('test-tenant', testRole1.roleName);
         expect(found?.description).toBe('Updated Description');
     });
 
     it('should return null when updating a non-existent role', async () => {
         const updates = { description: 'Updated Description' };
-        const updatedRole = await roleRepository.update('non-existent-role', updates);
+        const updatedRole = await roleRepository.update('test-tenant', 'non-existent-role', updates);
         expect(updatedRole).toBeNull();
     });
 
     it('should delete an existing role and return true', async () => {
         await expect(roleRepository.create(testRole1)).resolves.not.toThrow();
-        const deleted = await roleRepository.delete(testRole1.roleName);
+        const deleted = await roleRepository.delete('test-tenant', testRole1.roleName);
         expect(deleted).toBe(true);
 
         // Verify deletion
-        const found = await roleRepository.findByName(testRole1.roleName);
+        const found = await roleRepository.findByName('test-tenant', testRole1.roleName);
         expect(found).toBeNull();
     });
 
     it('should return false when deleting a non-existent role', async () => {
-        const deleted = await roleRepository.delete('non-existent-role');
+        const deleted = await roleRepository.delete('test-tenant', 'non-existent-role');
         expect(deleted).toBe(false);
     });
 
@@ -128,7 +128,7 @@ describe('DynamoRoleRepository Integration Tests - Minimal', () => {
         await expect(roleRepository.create(testRole2)).resolves.not.toThrow();
 
         // Basic list test (Scan might not be reliable for full verification without pagination)
-        const result = await roleRepository.list({ limit: 5 });
+        const result = await roleRepository.list('test-tenant', { limit: 5 });
         expect(result.items.length).toBeGreaterThanOrEqual(2); // Should find at least the two we created
         expect(result.items.some((r: Role) => r.roleName === testRole1.roleName)).toBe(true);
         expect(result.items.some((r: Role) => r.roleName === testRole2.roleName)).toBe(true);

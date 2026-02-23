@@ -4,6 +4,7 @@
  */
 export class Permission {
     constructor(
+        public readonly tenantId: string,
         // Unique identifier for the permission (e.g., 'user:read', 'order:create:own', 'document:edit:projectX')
         // Consider a structured naming convention.
         public readonly permissionName: string,
@@ -15,13 +16,13 @@ export class Permission {
         // public condition?: string, // Or a more structured condition object
         public createdAt: Date = new Date(),
         public updatedAt: Date = new Date()
-    ) {}
+    ) { }
 
-     /**
-     * Updates the mutable properties of the permission.
-     * @param updates - An object containing partial updates.
-     */
-     public update(updates: { description?: string }): void {
+    /**
+    * Updates the mutable properties of the permission.
+    * @param updates - An object containing partial updates.
+    */
+    public update(updates: { description?: string }): void {
         if (updates.description !== undefined) {
             this.description = updates.description;
         }
@@ -34,6 +35,7 @@ export class Permission {
      * @param data - Data retrieved from the database.
      */
     public static fromPersistence(data: {
+        tenantId: string;
         permissionName: string;
         description?: string;
         createdAt?: string | Date;
@@ -41,6 +43,7 @@ export class Permission {
         // Add other fields if stored
     }): Permission {
         return new Permission(
+            data.tenantId,
             data.permissionName,
             data.description,
             // Map other fields if needed
@@ -54,6 +57,7 @@ export class Permission {
      */
     public toPersistence(): Record<string, any> {
         return {
+            tenantId: this.tenantId,
             permissionName: this.permissionName,
             description: this.description,
             // Map other fields if needed

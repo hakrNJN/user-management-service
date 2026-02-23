@@ -1,0 +1,55 @@
+[dotenv@17.2.1] injecting env (11) from .env.test -- tip: ≡ƒôí auto-backup env with Radar: https://dotenvx.com/radar
+Table TestPermissions created successfully. Waiting for it to become active...
+Table TestPolicies created successfully. Waiting for it to become active...
+Table TestUsers created successfully. Waiting for it to become active...
+Table TestRoles created successfully. Waiting for it to become active...
+Table TestAssignments created successfully. Waiting for it to become active...
+FAIL tests/unit/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.spec.ts
+  DynamoDbPolicyEngineAdapter
+    publishPolicy
+      ├ù should validate syntax, save policy, and log success (9 ms)
+      ΓêÜ should re-throw InvalidPolicySyntaxError if validation fails (5 ms)
+      ΓêÜ should throw PolicyEngineAdapterError if repository save fails (4 ms)
+    getPolicyDefinition
+      ΓêÜ should return policy definition if found (2 ms)
+      ΓêÜ should return null if policy not found (2 ms)
+      ΓêÜ should throw PolicyEngineAdapterError if repository find fails (4 ms)
+    deletePolicyDefinition
+      ΓêÜ should delete policy and log success (4 ms)
+      ΓêÜ should throw PolicyNotFoundError if policy not found by repository (3 ms)
+      ΓêÜ should throw PolicyEngineAdapterError if repository delete fails (2 ms)
+    validatePolicySyntax
+      ΓêÜ should log warning and resolve for Rego (placeholder) (1 ms)
+      ΓêÜ should log warning and resolve for Cedar (not implemented) (4 ms)
+      ΓêÜ should log warning and resolve for unsupported language (4 ms)
+
+  ΓùÅ DynamoDbPolicyEngineAdapter ΓÇ║ publishPolicy ΓÇ║ should validate syntax, save policy, and log success
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: Any<String>, {"createdAt": 2026-02-23T11:49:05.319Z, "description": "", "id": "policy-id", "isActive": true, "metadata": {}, "policyDefinition": "rule { true }", "policyLanguage": "rego", "policyName": "test-policy", "tenantId": "test-tenant", "updatedAt": 2026-02-23T11:49:05.319Z, "version": 1}
+    Received: {"createdAt": 2026-02-23T11:49:05.319Z, "description": "", "id": "policy-id", "isActive": true, "metadata": {}, "policyDefinition": "rule { true }", "policyLanguage": "rego", "policyName": "test-policy", "tenantId": "test-tenant", "updatedAt": 2026-02-23T11:49:05.319Z, "version": 1}
+
+    Number of calls: 1
+
+      41 |
+      42 |             expect(validatePolicySyntaxSpy).toHaveBeenCalledWith(mockPolicy.policyDefinition, mockPolicy.policyLanguage);
+    > 43 |             expect(policyRepositoryMock.save).toHaveBeenCalledWith(expect.any(String), mockPolicy);
+         |                                               ^
+      44 |             expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('Successfully published policy'));
+      45 |         });
+      46 |
+
+      at tests/unit/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.spec.ts:43:47
+      at fulfilled (tests/unit/infrastructure/adapters/policy-engine/DynamoDbPolicyEngineAdapter.spec.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total
+Snapshots:   0 total
+Time:        1.608 s
+Ran all test suites matching /DynamoDbPolicyEngineAdapter/i.
+Table TestPolicies deleted successfully. Waiting for it to be deleted...
+Table TestPermissions deleted successfully. Waiting for it to be deleted...
+Table TestRoles deleted successfully. Waiting for it to be deleted...
+Table TestAssignments deleted successfully. Waiting for it to be deleted...
+Table TestUsers deleted successfully. Waiting for it to be deleted...

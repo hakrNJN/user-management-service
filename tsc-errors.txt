@@ -1,0 +1,1 @@
+tests/debug/dynamodb.debug.spec.ts(2,44): error TS2305: Module '"../helpers/dynamodb.helper"' has no exported member 'destroyDynamoDBClient'.

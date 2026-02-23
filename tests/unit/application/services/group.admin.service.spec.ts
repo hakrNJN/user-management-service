@@ -16,7 +16,7 @@ describe('GroupAdminService', () => {
     let service: GroupAdminService;
 
     const adminUser: AdminUser = {
-        id: 'admin-id',
+        id: 'admin-id', tenantId: 'test-tenant',
         username: 'admin-user',
         roles: ['admin'],
     };
@@ -126,8 +126,8 @@ describe('GroupAdminService', () => {
             const groupName = 'test-group';
             const roleName = 'test-role';
             const now = new Date();
-            const group = new Group(groupName, 'description', 'ACTIVE', 0, now, now);
-            const role = new Role(roleName, 'description', new Date(), new Date());
+            const group = new Group('test-tenant', groupName, 'description', 'ACTIVE', 0, now, now);
+            const role = new Role('test-tenant', roleName, 'description', new Date(), new Date());
 
             // Mock getGroup internal call
             jest.spyOn(service, 'getGroup').mockResolvedValue(group);
@@ -136,7 +136,7 @@ describe('GroupAdminService', () => {
 
             await service.assignRoleToGroup(adminUser, groupName, roleName);
 
-            expect(assignmentRepositoryMock.assignRoleToGroup).toHaveBeenCalledWith(groupName, roleName);
+            expect(assignmentRepositoryMock.assignRoleToGroup).toHaveBeenCalledWith(expect.any(String), groupName, roleName);
         });
 
         it('should throw GroupNotFoundError if group does not exist', async () => {
@@ -152,7 +152,7 @@ describe('GroupAdminService', () => {
             const groupName = 'test-group';
             const roleName = 'non-existent-role';
             const now = new Date();
-            const group = new Group(groupName, 'description', 'ACTIVE', 0, now, now);
+            const group = new Group('test-tenant', groupName, 'description', 'ACTIVE', 0, now, now);
 
             jest.spyOn(service, 'getGroup').mockResolvedValue(group);
             roleRepositoryMock.findByName.mockResolvedValue(null);
@@ -169,7 +169,7 @@ describe('GroupAdminService', () => {
 
             await service.removeRoleFromGroup(adminUser, groupName, roleName);
 
-            expect(assignmentRepositoryMock.removeRoleFromGroup).toHaveBeenCalledWith(groupName, roleName);
+            expect(assignmentRepositoryMock.removeRoleFromGroup).toHaveBeenCalledWith(expect.any(String), groupName, roleName);
         });
 
         it('should throw AssignmentError on failure', async () => {
@@ -187,7 +187,7 @@ describe('GroupAdminService', () => {
             const groupName = 'test-group';
             const roles = ['role1', 'role2'];
             const now = new Date();
-            const group = new Group(groupName, 'description', 'ACTIVE', 0, now, now);
+            const group = new Group('test-tenant', groupName, 'description', 'ACTIVE', 0, now, now);
 
             jest.spyOn(service, 'getGroup').mockResolvedValue(group);
             assignmentRepositoryMock.findRolesByGroupName.mockResolvedValue(roles);
@@ -207,7 +207,8 @@ describe('GroupAdminService', () => {
 
     describe('Permissions', () => {
         it('should throw ForbiddenError if admin user does not have required role', async () => {
-            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const nonAdminUser: AdminUser = { id: 'non-admin', tenantId: 'test-tenant',
+    username: 'non-admin-user', roles: ['viewer'] };
             const details: CreateGroupDetails = { groupName: 'new-group', description: 'A new group' };
 
             await expect(service.createGroup(nonAdminUser, details)).rejects.toThrow(BaseError);

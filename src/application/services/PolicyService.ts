@@ -14,17 +14,17 @@ export class PolicyService implements IPolicyService {
         @inject(TYPES.Logger) private logger: ILogger
     ) {}
 
-    public async getAllActivePolicies(): Promise<Policy[]> {
+    public async getAllActivePolicies(tenantId: string): Promise<Policy[]> {
         this.logger.info('Fetching all active policies');
         // Assuming policyRepository has a method to get all active policies
         // If not, we might need to add one or iterate through all policies
-        const policies = await this.policyRepository.getAllPolicies(); // Assuming this gets all policies, active or not
+        const policies = await this.policyRepository.getAllPolicies(tenantId); // Assuming this gets all policies, active or not
         return policies.filter(policy => policy.isActive); // Filter for active policies
     }
 
-    public async getPolicyBundle(): Promise<Buffer> {
+    public async getPolicyBundle(tenantId: string): Promise<Buffer> {
         this.logger.info('Generating OPA policy bundle');
-        const policies = await this.getAllActivePolicies();
+        const policies = await this.getAllActivePolicies(tenantId);
 
         const archive = archiver('tar', { gzip: true });
         const output = new PassThrough();

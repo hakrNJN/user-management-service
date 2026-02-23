@@ -1,4 +1,4 @@
-import { DynamoDBClient, ScanCommand, ScanCommandInput, GetItemCommand, PutItemCommand, DeleteItemCommand, QueryCommand, QueryCommandOutput, GetItemCommandOutput, PutItemCommandOutput, DeleteItemCommandOutput, AttributeValue, ScanCommandOutput } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, ScanCommandInput, GetItemCommand, PutItemCommand, DeleteItemCommand, QueryCommand, QueryCommandOutput, GetItemCommandOutput, PutItemCommandOutput, DeleteItemCommandOutput, AttributeValue } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { inject, injectable } from "tsyringe";
 import { Policy } from "../../../domain/entities/Policy";
@@ -25,9 +25,18 @@ export class DynamoPolicyRepository implements IPolicyRepository {
         this.logger.info(`DynamoPolicyRepository initialized with table: ${this.tableName}`);
     }
 
+    private getPK(tenantId: string): string {
+        return `TENANT#${tenantId}`;
+    }
+
+    private getPolicySK(policyId: string): string {
+        return `POLICY#${policyId}`;
+    }
+
     private mapToPolicy(item: Record<string, any>): Policy {
         const unmarshalled = unmarshall(item);
         return new Policy(
+            unmarshalled.tenantId,
             unmarshalled.id,
             unmarshalled.policyName,
             unmarshalled.policyDefinition,
@@ -36,16 +45,18 @@ export class DynamoPolicyRepository implements IPolicyRepository {
             unmarshalled.description,
             unmarshalled.metadata,
             new Date(unmarshalled.createdAt),
-            new Date(unmarshalled.updatedAt)
+            new Date(unmarshalled.updatedAt),
+            unmarshalled.isActive
         );
     }
 
     async save(policy: Policy): Promise<void> {
-        this.logger.info(`Saving policy: ${policy.id} version ${policy.version}`);
+        this.logger.info(`Saving policy: ${policy.id} version ${policy.version} for tenant ${policy.tenantId}`);
         const item = marshall({
-            PK: `POLICY#${policy.id}`,
-            SK: `POLICY#${policy.id}`,
+            PK: this.getPK(policy.tenantId),
+            SK: this.getPolicySK(policy.id),
             EntityType: "Policy",
+            tenantId: policy.tenantId,
             id: policy.id,
             policyName: policy.policyName,
             policyDefinition: policy.policyDefinition,
@@ -55,11 +66,12 @@ export class DynamoPolicyRepository implements IPolicyRepository {
             metadata: policy.metadata,
             createdAt: policy.createdAt.toISOString(),
             updatedAt: policy.updatedAt.toISOString(),
+            isActive: policy.isActive,
             // GSI attributes
-            EntityTypeGSI_PK: "Policy",
-            EntityTypeGSI_SK: `POLICY#${policy.id}`,
-            PolicyNameGSI_PK: policy.policyName,
-            PolicyNameGSI_SK: `POLICY#${policy.id}`,
+            EntityTypeGSI_PK: this.getPK(policy.tenantId), // Partition by tenant
+            EntityTypeGSI_SK: this.getPolicySK(policy.id),
+            PolicyNameGSI_PK: this.getPK(policy.tenantId), // Partition by tenant
+            PolicyNameGSI_SK: `POLICYNAME#${policy.policyName}`,
         }, { removeUndefinedValues: true });
 
         const command = new PutItemCommand({
@@ -69,20 +81,20 @@ export class DynamoPolicyRepository implements IPolicyRepository {
 
         try {
             await this.client.send(command);
-            this.logger.info(`Successfully saved policy: ${policy.id} version ${policy.version}`);
+            this.logger.info(`Successfully saved policy: ${policy.id} version ${policy.version} for tenant ${policy.tenantId}`);
         } catch (error: any) {
             this.logger.error(`Error saving policy ${policy.id}: ${error.message}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to save policy: ${error.message}`);
         }
     }
 
-    async findById(policyId: string): Promise<Policy | null> {
-        this.logger.info(`Getting policy by ID: ${policyId}`);
+    async findById(tenantId: string, policyId: string): Promise<Policy | null> {
+        this.logger.info(`Getting policy by ID: ${policyId} for tenant ${tenantId}`);
         const command = new GetItemCommand({
             TableName: this.tableName,
             Key: marshall({
-                PK: `POLICY#${policyId}`,
-                SK: `POLICY#${policyId}`,
+                PK: this.getPK(tenantId),
+                SK: this.getPolicySK(policyId),
             }),
         });
 
@@ -98,14 +110,15 @@ export class DynamoPolicyRepository implements IPolicyRepository {
         }
     }
 
-    async findByName(policyName: string): Promise<Policy | null> {
-        this.logger.info(`Getting policy by name: ${policyName}`);
+    async findByName(tenantId: string, policyName: string): Promise<Policy | null> {
+        this.logger.info(`Getting policy by name: ${policyName} for tenant ${tenantId}`);
         const commandInput = {
             TableName: this.tableName,
-            IndexName: "PolicyNameGSI", // Assuming this GSI exists
-            KeyConditionExpression: "PolicyNameGSI_PK = :policyName",
+            IndexName: "PolicyNameGSI",
+            KeyConditionExpression: "PolicyNameGSI_PK = :pk AND PolicyNameGSI_SK = :sk",
             ExpressionAttributeValues: marshall({
-                ":policyName": policyName
+                ":pk": this.getPK(tenantId),
+                ":sk": `POLICYNAME#${policyName}`
             }),
             Limit: 1,
         };
@@ -123,43 +136,31 @@ export class DynamoPolicyRepository implements IPolicyRepository {
         }
     }
 
-    async list(options?: QueryOptions & { language?: string }): Promise<QueryResult<Policy>> {
-        this.logger.info(`Listing policies with options: ${JSON.stringify(options)}`);
-        let commandInput: any;
-        let command: any;
+    async list(tenantId: string, options?: QueryOptions & { language?: string }): Promise<QueryResult<Policy>> {
+        this.logger.info(`Listing policies for tenant ${tenantId} with options: ${JSON.stringify(options)}`);
 
-        if (options?.language) {
-            // If filtering by language, use Scan with FilterExpression for now
-            // A dedicated GSI for policyLanguage would be more efficient for large datasets
-            commandInput = {
-                TableName: this.tableName,
-                FilterExpression: "EntityType = :type AND policyLanguage = :language",
-                ExpressionAttributeValues: marshall({
-                    ":type": "Policy",
-                    ":language": options.language
-                }),
-                Limit: options?.limit,
-                ExclusiveStartKey: options?.startKey ? marshall(options.startKey) : undefined,
-            };
-            command = new ScanCommand(commandInput);
-        } else {
-            // Otherwise, use Query on EntityTypeGSI
-            commandInput = {
-                TableName: this.tableName,
-                IndexName: "EntityTypeGSI",
-                KeyConditionExpression: "EntityTypeGSI_PK = :type",
-                ExpressionAttributeValues: marshall({
-                    ":type": "Policy"
-                }),
-                Limit: options?.limit,
-                ExclusiveStartKey: options?.startKey ? marshall(options.startKey) : undefined,
-            };
-            command = new QueryCommand(commandInput);
-        }
+        // Use Query on main table (or EntityTypeGSI) to get all policies for a tenant
+        const commandInput: any = {
+            TableName: this.tableName,
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+            ExpressionAttributeValues: marshall({
+                ":pk": this.getPK(tenantId),
+                ":skPrefix": "POLICY#"
+            }),
+            Limit: options?.limit,
+            ExclusiveStartKey: options?.startKey ? marshall(options.startKey) : undefined,
+        };
+
+        const command = new QueryCommand(commandInput);
 
         try {
-            const result = await this.client.send(command) as QueryCommandOutput | ScanCommandOutput;
-            const policies = result.Items ? result.Items.map((item: Record<string, AttributeValue>) => this.mapToPolicy(item)) : [];
+            const result = await this.client.send(command) as QueryCommandOutput;
+            let policies = result.Items ? result.Items.map((item: Record<string, AttributeValue>) => this.mapToPolicy(item)) : [];
+
+            if (options?.language) {
+                policies = policies.filter(p => p.policyLanguage === options.language);
+            }
+
             const lastEvaluatedKey = result.LastEvaluatedKey ? unmarshall(result.LastEvaluatedKey) : undefined;
             return { items: policies, lastEvaluatedKey: lastEvaluatedKey };
         } catch (error: any) {
@@ -168,15 +169,15 @@ export class DynamoPolicyRepository implements IPolicyRepository {
         }
     }
 
-    async delete(policyId: string): Promise<boolean> {
-        this.logger.info(`Deleting policy with ID: ${policyId}`);
+    async delete(tenantId: string, policyId: string): Promise<boolean> {
+        this.logger.info(`Deleting policy with ID: ${policyId} for tenant ${tenantId}`);
         const command = new DeleteItemCommand({
             TableName: this.tableName,
             Key: marshall({
-                PK: `POLICY#${policyId}`,
-                SK: `POLICY#${policyId}`,
+                PK: this.getPK(tenantId),
+                SK: this.getPolicySK(policyId),
             }),
-            ConditionExpression: 'attribute_exists(PK)' // Ensure the item exists before deleting
+            ConditionExpression: 'attribute_exists(PK)'
         });
 
         try {
@@ -193,15 +194,14 @@ export class DynamoPolicyRepository implements IPolicyRepository {
         }
     }
 
-    async getPolicyVersion(policyId: string, version: number): Promise<Policy | null> {
-        // TODO: Implement this using a GSI on policyId and version for performance.
-        this.logger.warn(`Getting policy version using Query on main table. Implement GSI for performance.`);
+    async getPolicyVersion(tenantId: string, policyId: string, version: number): Promise<Policy | null> {
+        this.logger.warn(`Getting policy version using Query on main table.`);
 
         const command = new GetItemCommand({
             TableName: this.tableName,
             Key: marshall({
-                PK: `POLICY#${policyId}`,
-                SK: `POLICY#${policyId}` // Assuming SK is also POLICY#id for now
+                PK: this.getPK(tenantId),
+                SK: this.getPolicySK(policyId) // Assuming SK is also POLICY#id for now, versioning needs deeper modeling
             })
         });
 
@@ -211,26 +211,25 @@ export class DynamoPolicyRepository implements IPolicyRepository {
                 return null;
             }
             const policy = this.mapToPolicy(result.Item);
-            // Filter by version in application code for now, if SK is not versioned
             if (policy.version === version) {
                 return policy;
             }
             return null;
         } catch (error: any) {
-            this.logger.error(`Error finding policy version ${version} for policy ID ${policyId} using GetItem`, error);
+            this.logger.error(`Error finding policy version ${version} for policy ID ${policyId}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to find policy version: ${error.message}`);
         }
     }
 
-    async listPolicyVersions(policyId: string): Promise<Policy[]> {
-        // TODO: Implement this using a GSI on policyId for performance.
-        this.logger.warn(`Listing policy versions using Query on main table. Implement GSI for performance.`);
+    async listPolicyVersions(tenantId: string, policyId: string): Promise<Policy[]> {
+        this.logger.warn(`Listing policy versions using Query on main table.`);
 
         const commandInput = {
             TableName: this.tableName,
-            KeyConditionExpression: "PK = :pk",
+            KeyConditionExpression: "PK = :pk AND SK = :sk", // If versioned, SK would be POLICY#<id>#v<version>
             ExpressionAttributeValues: marshall({
-                ":pk": `POLICY#${policyId}`
+                ":pk": this.getPK(tenantId),
+                ":sk": this.getPolicySK(policyId)
             }),
         };
         const command = new QueryCommand(commandInput);
@@ -242,21 +241,19 @@ export class DynamoPolicyRepository implements IPolicyRepository {
             }
             return result.Items.map((item: Record<string, AttributeValue>) => this.mapToPolicy(item));
         } catch (error: any) {
-            this.logger.error(`Error listing policy versions for policy ID ${policyId} using Query`, error);
+            this.logger.error(`Error listing policy versions for policy ID ${policyId}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to list policy versions: ${error.message}`);
         }
     }
 
-    
-
-    async getAllPolicies(): Promise<Policy[]> {
-        this.logger.info('Fetching all policies from DynamoDB using EntityTypeGSI.');
+    async getAllPolicies(tenantId: string): Promise<Policy[]> {
+        this.logger.info(`Fetching all policies from DynamoDB for tenant ${tenantId}.`);
         const commandInput = {
             TableName: this.tableName,
-            IndexName: "EntityTypeGSI",
-            KeyConditionExpression: "EntityTypeGSI_PK = :type",
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
             ExpressionAttributeValues: marshall({
-                ":type": "Policy"
+                ":pk": this.getPK(tenantId),
+                ":skPrefix": "POLICY#"
             }),
         };
         const command = new QueryCommand(commandInput);
@@ -268,7 +265,7 @@ export class DynamoPolicyRepository implements IPolicyRepository {
             }
             return result.Items.map((item: Record<string, AttributeValue>) => this.mapToPolicy(item));
         } catch (error: any) {
-            this.logger.error('Error fetching all policies from DynamoDB', error);
+            this.logger.error(`Error fetching all policies for tenant ${tenantId}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to fetch all policies: ${error.message}`);
         }
     }

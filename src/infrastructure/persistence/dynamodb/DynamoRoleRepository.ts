@@ -1,9 +1,9 @@
 import {
     AttributeValue,
     ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand,
-    QueryCommand, // <<< Import QueryCommand
-    QueryCommandInput, // <<< Import QueryCommandInput
-    UpdateItemCommand // <<< Import UpdateItemCommand
+    QueryCommand,
+    QueryCommandInput,
+    UpdateItemCommand
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { inject, injectable } from "tsyringe";
@@ -12,27 +12,25 @@ import { ILogger } from "../../../application/interfaces/ILogger";
 import { IRoleRepository } from "../../../application/interfaces/IRoleRepository";
 import { QueryOptions, QueryResult } from "../../../shared/types/query.types";
 import { Role } from "../../../domain/entities/Role";
-import { RoleExistsError } from "../../../domain/exceptions/UserManagementError"; // Import specific errors
+import { RoleExistsError } from "../../../domain/exceptions/UserManagementError";
 import { TYPES } from "../../../shared/constants/types";
 import { BaseError } from "../../../shared/errors/BaseError";
-import { DynamoDBProvider } from "./dynamodb.client"; // Inject provider
+import { DynamoDBProvider } from "./dynamodb.client";
 
-// Define an interface for the expected structure from DynamoDB
 interface RoleDynamoItem {
-    PK: string;         // ROLE#{roleName}
-    SK: string;         // ROLE#{roleName}
+    PK: string;
+    SK: string;
     EntityType: 'Role';
-    roleName: string;   // This is the key field stored in the item
+    tenantId: string;
+    roleName: string;
     description?: string;
-    createdAt: string; // Stored as ISO string
-    updatedAt: string; // Stored as ISO string
-    // GSI Keys for listing by type
-    EntityTypeGSI_PK: string; // Value: 'Role'
-    EntityTypeGSI_SK: string; // Value: ROLE#{roleName}
+    createdAt: string;
+    updatedAt: string;
+    EntityTypeGSI_PK: string;
+    EntityTypeGSI_SK: string;
 }
 
-// Constants for GSI
-export const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI'; // <<< Define GSI Name
+export const ENTITY_TYPE_GSI_NAME = 'EntityTypeGSI';
 
 @injectable()
 export class DynamoRoleRepository implements IRoleRepository {
@@ -46,53 +44,59 @@ export class DynamoRoleRepository implements IRoleRepository {
         this.tableName = configService.getOrThrow('AUTHZ_TABLE_NAME');
     }
 
+    private getPK(tenantId: string): string {
+        return `TENANT#${tenantId}`;
+    }
+
+    private getRoleSK(roleName: string): string {
+        return `ROLE#${roleName}`;
+    }
+
     private mapToRole(item: Record<string, AttributeValue>): Role {
         const plainObject = unmarshall(item);
-         try {
-             return Role.fromPersistence(plainObject as any);
+        try {
+            return Role.fromPersistence(plainObject as any);
         } catch (error: any) {
             this.logger.error("Failed to map DynamoDB item to Role entity", { itemPK: item.PK?.S, error: error.message, item });
             throw new BaseError('InvalidDataError', 500, `Invalid role data retrieved from database: ${error.message}`, false);
         }
     }
 
-    private createKey(roleName: string): Record<string, AttributeValue> {
-         const key = `ROLE#${roleName}`;
-         return marshall({ PK: key, SK: key });
+    private createKey(tenantId: string, roleName: string): Record<string, AttributeValue> {
+        return marshall({ PK: this.getPK(tenantId), SK: this.getRoleSK(roleName) });
     }
 
     async create(role: Role): Promise<void> {
-        const item = {
-            PK: `ROLE#${role.roleName}`,
-            SK: `ROLE#${role.roleName}`,
+        const item: RoleDynamoItem = {
+            PK: this.getPK(role.tenantId),
+            SK: this.getRoleSK(role.roleName),
             EntityType: 'Role',
-            ...role.toPersistence(),
-            // Add GSI keys
-            EntityTypeGSI_PK: 'Role',
-            EntityTypeGSI_SK: `ROLE#${role.roleName}`,
+            ...role.toPersistence() as any, // Cast from toPersistence output
+            EntityTypeGSI_PK: this.getPK(role.tenantId),
+            EntityTypeGSI_SK: this.getRoleSK(role.roleName),
         };
         const command = new PutItemCommand({
             TableName: this.tableName,
             Item: marshall(item, { removeUndefinedValues: true }),
-            ConditionExpression: 'attribute_not_exists(PK)' // Prevent overwriting
+            ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)'
         });
         try {
             await this.client.send(command);
-            this.logger.info(`Role created successfully: ${role.roleName}`);
+            this.logger.info(`Role created successfully: ${role.roleName} in tenant ${role.tenantId}`);
         } catch (error: any) {
             if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
                 this.logger.warn(`Failed to create role, already exists: ${role.roleName}`);
-                throw new RoleExistsError(role.roleName); // Throw specific error
+                throw new RoleExistsError(role.roleName);
             }
             this.logger.error(`Error creating role ${role.roleName}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to create role: ${error.message}`);
         }
     }
 
-    async findByName(roleName: string): Promise<Role | null> {
+    async findByName(tenantId: string, roleName: string): Promise<Role | null> {
         const command = new GetItemCommand({
             TableName: this.tableName,
-            Key: this.createKey(roleName)
+            Key: this.createKey(tenantId, roleName)
         });
         try {
             const result = await this.client.send(command);
@@ -104,21 +108,20 @@ export class DynamoRoleRepository implements IRoleRepository {
         }
     }
 
-    // *** MODIFIED list METHOD ***
-    async list(options?: QueryOptions): Promise<QueryResult<Role>> {
-        this.logger.debug("Listing roles using Query on GSI", { options });
+    async list(tenantId: string, options?: QueryOptions): Promise<QueryResult<Role>> {
+        this.logger.debug("Listing roles using Query on main table for tenant", { tenantId, options });
         const commandInput: QueryCommandInput = {
             TableName: this.tableName,
-            IndexName: ENTITY_TYPE_GSI_NAME, // <<< Query the GSI
-            KeyConditionExpression: "EntityTypeGSI_PK = :type", // <<< Query GSI PK
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
             ExpressionAttributeValues: marshall({
-                 ":type": "Role"
+                ":pk": this.getPK(tenantId),
+                ":skPrefix": "ROLE#"
             }),
             Limit: options?.limit,
-            ExclusiveStartKey: options?.startKey, // Pass opaque key directly
+            ExclusiveStartKey: options?.startKey,
             ScanIndexForward: true,
         };
-                const command = new QueryCommand(commandInput); // <<< Use QueryCommand
+        const command = new QueryCommand(commandInput);
         try {
             const result = await this.client.send(command);
             const roles = result.Items?.map(item => this.mapToRole(item)) || [];
@@ -127,14 +130,13 @@ export class DynamoRoleRepository implements IRoleRepository {
                 lastEvaluatedKey: result.LastEvaluatedKey ? result.LastEvaluatedKey as Record<string, any> : undefined,
             };
         } catch (error: any) {
-            this.logger.error(`Error listing roles via GSI`, error);
+            this.logger.error(`Error listing roles`, error);
             throw new BaseError('DatabaseError', 500, `Failed to list roles: ${error.message}`);
         }
     }
 
-    // *** MODIFIED update METHOD ***
-    async update(roleName: string, updates: Partial<Pick<Role, 'description'>>): Promise<Role | null> {
-        const key = this.createKey(roleName);
+    async update(tenantId: string, roleName: string, updates: Partial<Pick<Role, 'description'>>): Promise<Role | null> {
+        const key = this.createKey(tenantId, roleName);
         const now = new Date().toISOString();
 
         const updateExpressionParts: string[] = ['SET updatedAt = :now'];
@@ -143,22 +145,22 @@ export class DynamoRoleRepository implements IRoleRepository {
         if (updates.description !== undefined) {
             updateExpressionParts.push('description = :desc');
             expressionAttributeValues[':desc'] = updates.description;
-        } // Add handling for other fields if they become updatable
+        }
 
         const command = new UpdateItemCommand({
             TableName: this.tableName,
             Key: key,
             UpdateExpression: updateExpressionParts.join(', '),
             ExpressionAttributeValues: marshall(expressionAttributeValues),
-            ConditionExpression: 'attribute_exists(PK)',
+            ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
             ReturnValues: 'ALL_NEW',
         });
 
         try {
             const result = await this.client.send(command);
-             if (!result.Attributes) {
-                 this.logger.error("UpdateItem succeeded but returned no attributes", { roleName });
-                 throw new BaseError('DatabaseError', 500, 'Failed to retrieve updated role attributes.');
+            if (!result.Attributes) {
+                this.logger.error("UpdateItem succeeded but returned no attributes", { roleName });
+                throw new BaseError('DatabaseError', 500, 'Failed to retrieve updated role attributes.');
             }
             this.logger.info(`Role updated successfully: ${roleName}`);
             return this.mapToRole(result.Attributes);
@@ -172,21 +174,20 @@ export class DynamoRoleRepository implements IRoleRepository {
         }
     }
 
-    async delete(roleName: string): Promise<boolean> {
+    async delete(tenantId: string, roleName: string): Promise<boolean> {
         const command = new DeleteItemCommand({
             TableName: this.tableName,
-            Key: this.createKey(roleName),
-            ConditionExpression: 'attribute_exists(PK)' // Ensure it exists before deleting
+            Key: this.createKey(tenantId, roleName),
+            ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)'
         });
         try {
             await this.client.send(command);
-            this.logger.info(`Role deleted successfully: ${roleName}`);
-            // Service layer handles assignment cleanup
+            this.logger.info(`Role deleted successfully: ${roleName} in tenant ${tenantId}`);
             return true;
         } catch (error: any) {
             if (error instanceof ConditionalCheckFailedException || error.name === 'ConditionalCheckFailedException') {
-                this.logger.warn(`Failed to delete role, not found: ${roleName}`);
-                return false; // Not found
+                this.logger.warn(`Failed to delete role, not found: ${roleName} in tenant ${tenantId}`);
+                return false;
             }
             this.logger.error(`Error deleting role ${roleName}`, error);
             throw new BaseError('DatabaseError', 500, `Failed to delete role: ${error.message}`);

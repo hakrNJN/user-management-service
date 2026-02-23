@@ -19,13 +19,17 @@ persistenceContainer.register<IConfigService>(TYPES.ConfigService, { useValue: m
 
 // 3. Register the REAL DynamoDBProvider, but override its client with our shared test client
 persistenceContainer.register<DynamoDBClient>(DynamoDBClient, {
-    useFactory: (c) => {
-        // Create a new client instance every time the provider is resolved
-        const testDynamoDBClient = new DynamoDBClient({
-            region: "ap-south-1", // Consistent with test files
-        } as any);
-        return testDynamoDBClient;
-    },
+  useFactory: (c) => {
+    // Create a new client instance every time the provider is resolved
+    const testDynamoDBClient = new DynamoDBClient({
+      region: "ap-south-1", // Consistent with test files
+    } as any);
+    return testDynamoDBClient;
+  },
+});
+
+persistenceContainer.register<DynamoDBProvider>(TYPES.DynamoDBProvider, {
+  useFactory: (c) => new DynamoDBProvider(c.resolve(TYPES.ConfigService), c.resolve(DynamoDBClient))
 });
 
 

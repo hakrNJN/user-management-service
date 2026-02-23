@@ -21,13 +21,13 @@ describe('RoleAdminService', () => {
     let loggerMock: jest.Mocked<ILogger>;
 
     const adminUser: AdminUser = {
-        id: 'admin-id',
+        id: 'admin-id', tenantId: 'test-tenant',
         username: 'admin-user',
         roles: ['admin'],
     };
 
     const roleName = 'test-role';
-    const roleEntity = new Role(roleName, 'A test role');
+    const roleEntity = new Role('test-tenant', roleName, 'A test role');
 
     beforeEach(() => {
         roleRepoMock = {
@@ -95,7 +95,7 @@ describe('RoleAdminService', () => {
 
             const result = await service.getRole(adminUser, roleName);
 
-            expect(roleRepoMock.findByName).toHaveBeenCalledWith(roleName);
+            expect(roleRepoMock.findByName).toHaveBeenCalledWith('test-tenant', roleName);
             expect(result).toEqual(roleEntity);
         });
 
@@ -115,7 +115,7 @@ describe('RoleAdminService', () => {
 
             const result = await service.listRoles(adminUser, {});
 
-            expect(roleRepoMock.list).toHaveBeenCalledWith({});
+            expect(roleRepoMock.list).toHaveBeenCalledWith('test-tenant', {});
             expect(result).toEqual(roles);
         });
     });
@@ -123,12 +123,12 @@ describe('RoleAdminService', () => {
     describe('updateRole', () => {
         it('should update a role successfully', async () => {
             const updates = { description: 'Updated description' };
-            const updatedRole = new Role(roleName, updates.description);
+            const updatedRole = new Role('test-tenant', roleName, updates.description);
             roleRepoMock.update.mockResolvedValue(updatedRole);
 
             const result = await service.updateRole(adminUser, roleName, updates);
 
-            expect(roleRepoMock.update).toHaveBeenCalledWith(roleName, updates);
+            expect(roleRepoMock.update).toHaveBeenCalledWith('test-tenant', roleName, updates);
             expect(result).toEqual(updatedRole);
         });
     });
@@ -140,8 +140,8 @@ describe('RoleAdminService', () => {
 
             await service.deleteRole(adminUser, roleName);
 
-            expect(roleRepoMock.delete).toHaveBeenCalledWith(roleName);
-            expect(assignmentRepoMock.removeAllAssignmentsForRole).toHaveBeenCalledWith(roleName);
+            expect(roleRepoMock.delete).toHaveBeenCalledWith('test-tenant', roleName);
+            expect(assignmentRepoMock.removeAllAssignmentsForRole).toHaveBeenCalledWith('test-tenant', roleName);
         });
 
         it('should throw RoleNotFoundError if role does not exist', async () => {
@@ -162,7 +162,7 @@ describe('RoleAdminService', () => {
 
     describe('assignPermissionToRole', () => {
         const permissionName = 'test-permission';
-        const permissionEntity = new Permission(permissionName, 'A test permission');
+        const permissionEntity = new Permission('test-tenant', permissionName, 'A test permission');
 
         it('should assign a permission to a role successfully', async () => {
             roleRepoMock.findByName.mockResolvedValue(roleEntity);
@@ -171,7 +171,7 @@ describe('RoleAdminService', () => {
 
             await service.assignPermissionToRole(adminUser, roleName, permissionName);
 
-            expect(assignmentRepoMock.assignPermissionToRole).toHaveBeenCalledWith(roleName, permissionName);
+            expect(assignmentRepoMock.assignPermissionToRole).toHaveBeenCalledWith('test-tenant', roleName, permissionName);
         });
 
         it('should throw RoleNotFoundError if role does not exist', async () => {
@@ -196,7 +196,7 @@ describe('RoleAdminService', () => {
 
             await service.removePermissionFromRole(adminUser, roleName, permissionName);
 
-            expect(assignmentRepoMock.removePermissionFromRole).toHaveBeenCalledWith(roleName, permissionName);
+            expect(assignmentRepoMock.removePermissionFromRole).toHaveBeenCalledWith('test-tenant', roleName, permissionName);
         });
 
         it('should throw AssignmentError on failure', async () => {
@@ -227,7 +227,10 @@ describe('RoleAdminService', () => {
 
     describe('Permissions', () => {
         it('should throw ForbiddenError if admin user does not have required role', async () => {
-            const nonAdminUser: AdminUser = { id: 'non-admin', username: 'non-admin-user', roles: ['viewer'] };
+            const nonAdminUser: AdminUser = {
+                id: 'non-admin', tenantId: 'test-tenant',
+                username: 'non-admin-user', roles: ['viewer']
+            };
             const details = { roleName: 'new-role', description: 'A new role' };
 
             await expect(service.createRole(nonAdminUser, details)).rejects.toThrow(BaseError);

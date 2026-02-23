@@ -1,0 +1,8 @@
+PASS tests/integration/routes/system.routes.integration.spec.ts (36.947 s)
+PASS tests/integration/routes/role.admin.routes.integration.spec.ts (37.568 s)
+FAIL tests/integration/routes/permission.admin.routes.integration.spec.ts (37.656 s)
+PASS tests/integration/routes/group.admin.routes.integration.spec.ts (37.708 s)
+FAIL tests/integration/routes/user.admin.routes.integration.spec.ts (37.994 s)
+FAIL tests/integration/routes/policy.admin.routes.integration.spec.ts (38.831 s)
+Test Suites: 3 failed, 3 passed, 6 total
+Tests:       9 failed, 124 passed, 133 total

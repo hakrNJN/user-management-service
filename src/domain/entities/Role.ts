@@ -6,13 +6,14 @@ import { BaseError } from "../../shared/errors/BaseError";
  */
 export class Role {
     constructor(
+        public readonly tenantId: string,
         // Unique name for the role (e.g., 'document-editor', 'billing-admin')
         public readonly roleName: string,
         public description?: string,
         public createdAt: Date = new Date(),
         public updatedAt: Date = new Date()
         // Add other relevant properties if needed
-    ) {}
+    ) { }
 
     /**
      * Updates the mutable properties of the role.
@@ -30,6 +31,7 @@ export class Role {
      * @param data - Data retrieved from the database.
      */
     public static fromPersistence(data: {
+        tenantId: string;
         roleName: string;
         description?: string;
         createdAt?: string | Date;
@@ -39,6 +41,7 @@ export class Role {
             throw new BaseError('InvalidDataError', 500, 'Role name is missing from persistence data.', false);
         }
         return new Role(
+            data.tenantId,
             data.roleName,
             data.description,
             data.createdAt ? new Date(data.createdAt) : new Date(),
@@ -51,6 +54,7 @@ export class Role {
      */
     public toPersistence(): Record<string, any> {
         return {
+            tenantId: this.tenantId,
             roleName: this.roleName,
             description: this.description,
             createdAt: this.createdAt.toISOString(),

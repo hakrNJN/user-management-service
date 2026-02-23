@@ -4,10 +4,10 @@
  */
 export interface IRepository<T> {
     save(item: T): Promise<void>;
-    findById(id: string): Promise<T | null>;
-    findAll?(): Promise<T[]>;
-    update(id: string, updates: Partial<T>): Promise<T | null>;
-    delete(id: string): Promise<boolean>;
+    findById(tenantId: string, id: string): Promise<T | null>;
+    findAll?(tenantId: string): Promise<T[]>;
+    update(tenantId: string, id: string, updates: Partial<T>): Promise<T | null>;
+    delete(tenantId: string, id: string): Promise<boolean>;
 
     // Optional: Generic query method if needed, though strictly typed methods in specific repo interfaces are better
     // query(filter: Partial<T>): Promise<T[]>;
