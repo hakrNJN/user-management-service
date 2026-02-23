@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/main.js",
-    "dev": "ts-node-dev --watch --respawn --transpile-only --env-file=.env.example src/main.ts",
+    "start": "node --require ./dist/infrastructure/observability/tracer.js dist/main.js",
+    "dev": "ts-node-dev --watch --respawn --transpile-only --require ./src/infrastructure/observability/tracer.ts --env-file=.env.example src/main.ts",
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -29,6 +29,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.62.0",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.203.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.203.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.212.0",
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-metrics": "^2.0.1",
     "@opentelemetry/sdk-node": "^0.203.0",

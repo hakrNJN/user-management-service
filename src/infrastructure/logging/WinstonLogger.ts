@@ -6,6 +6,7 @@ import { IConfigService } from '../../application/interfaces/IConfigService';
 import { ILogger } from '../../application/interfaces/ILogger';
 import { TYPES } from '../../shared/constants/types';
 import { LogFormats } from '../../shared/utils/logFormat';
+import { trace, context } from '@opentelemetry/api';
 
 type NodeEnv = 'development' | 'production' | 'test';
 
@@ -23,10 +24,20 @@ export class WinstonLogger implements ILogger {
         const logLevel = this.configService.get('LOG_LEVEL', 'info');
         const nodeEnv = this.configService.get<NodeEnv>('NODE_ENV', 'development');
 
+        const traceFormat = winston.format((info) => {
+            const span = trace.getSpan(context.active());
+            if (span) {
+                const { traceId, spanId } = span.spanContext();
+                info.trace_id = traceId;
+                info.span_id = spanId;
+            }
+            return info;
+        });
+
         // Create base logger with console transport
         const logger = winston.createLogger({
             level: logLevel,
-            format: LogFormats.productionFormat, // Always use JSON format
+            format: winston.format.combine(traceFormat(), LogFormats.productionFormat), // Always use JSON format
             transports: [
                 new winston.transports.Console({
                     level: logLevel
@@ -81,7 +92,7 @@ export class WinstonLogger implements ILogger {
 
     error(message: string, error?: Error | any, meta?: Record<string, any>): void {
         if (!message) return;
-        
+
         let logMeta = meta || {};
         if (error) {
             if (error instanceof Error) {
@@ -100,7 +111,7 @@ export class WinstonLogger implements ILogger {
                 };
             }
         }
-        
+
         this._logger.error(message, logMeta);
     }
 
