@@ -13,7 +13,7 @@ const cognitoDescribe = RUN_COGNITO_INTEGRATION_TESTS ? describe : describe.skip
 cognitoDescribe('CognitoUserMgmtAdapter Integration Tests', () => {
     let adapter: IUserMgmtAdapter;
     let configService: IConfigService;
-    
+
     // Shared resources for tests
     const primaryUsername = `primary-user-${Date.now()}`;
     const primaryEmail = `${primaryUsername}@integrationtest.local`;
@@ -170,12 +170,30 @@ cognitoDescribe('CognitoUserMgmtAdapter Integration Tests', () => {
 
     it('should list users, groups, and users in a group', async () => {
         // List users
-        const usersResult = await adapter.adminListUsers({});
-        expect(usersResult.users.some(u => u.Username === primaryUsername)).toBe(true);
+        let foundUser = false;
+        let uToken: string | undefined = undefined;
+        do {
+            const usersResult = await adapter.adminListUsers({ paginationToken: uToken });
+            if (usersResult.users.some(u => u.Username === primaryUsername)) {
+                foundUser = true;
+                break;
+            }
+            uToken = usersResult.paginationToken;
+        } while (uToken);
+        expect(foundUser).toBe(true);
 
         // List groups
-        const groupsResult = await adapter.adminListGroups();
-        expect(groupsResult.groups.some(g => g.GroupName === primaryGroupName)).toBe(true);
+        let foundGroup = false;
+        let gToken: string | undefined = undefined;
+        do {
+            const groupsResult = await adapter.adminListGroups(60, gToken);
+            if (groupsResult.groups.some(g => g.GroupName === primaryGroupName)) {
+                foundGroup = true;
+                break;
+            }
+            gToken = groupsResult.nextToken;
+        } while (gToken);
+        expect(foundGroup).toBe(true);
 
         // List users in group
         await adapter.adminAddUserToGroup(primaryUsername, primaryGroupName);
@@ -184,6 +202,6 @@ cognitoDescribe('CognitoUserMgmtAdapter Integration Tests', () => {
         // Cleanup for this test
         await adapter.adminRemoveUserFromGroup(primaryUsername, primaryGroupName);
     });
-    
+
     // Note: Soft delete is tested implicitly by the afterAll cleanup
 });

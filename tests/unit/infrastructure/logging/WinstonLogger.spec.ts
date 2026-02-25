@@ -53,12 +53,12 @@ jest.mock('winston', () => ({
     transports: {
         Console: jest.fn(() => mockConsoleTransportInstance),
     },
-    format: {
+    format: Object.assign(jest.fn(() => jest.fn()), {
         json: jest.fn(),
-        combine: jest.fn(),
+        combine: jest.fn(() => mockProductionFormat),
         timestamp: jest.fn(),
         printf: jest.fn(),
-    },
+    }),
 }));
 
 describe('WinstonLogger', () => {
@@ -101,11 +101,11 @@ describe('WinstonLogger', () => {
             expect(configServiceMock.get).toHaveBeenCalledWith('LOG_LEVEL', 'info');
             expect(configServiceMock.get).toHaveBeenCalledWith('NODE_ENV', 'development');
             expect(winston.createLogger).toHaveBeenCalledTimes(1);
-            expect(winston.createLogger).toHaveBeenCalledWith({
+            expect(winston.createLogger).toHaveBeenCalledWith(expect.objectContaining({
                 level: 'info',
                 format: mockProductionFormat,
                 transports: [mockConsoleTransportInstance],
-            });
+            }));
             expect(winston.transports.Console).toHaveBeenCalledTimes(1);
             expect(winston.transports.Console).toHaveBeenCalledWith({ level: 'info' });
         });

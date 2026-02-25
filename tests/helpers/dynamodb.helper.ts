@@ -56,6 +56,8 @@ export async function deleteTestTable(tableName: string): Promise<void> {
     } catch (error: any) {
         if (error.name === 'ResourceNotFoundException') {
             console.log(`Table ${tableName} not found.`);
+        } else if (error.name === 'ResourceInUseException') {
+            console.log(`Table ${tableName} is already being deleted/created.`);
         } else {
             console.error(`Error deleting table ${tableName}:`, error);
             throw error;

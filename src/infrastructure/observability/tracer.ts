@@ -27,10 +27,7 @@ const serviceVersion = process.env.SERVICE_VERSION || process.env.npm_package_ve
 const traceExporter = new OTLPTraceExporter();
 
 const sdk = new NodeSDK({
-    resource: new Resource({
-        [ATTR_SERVICE_NAME]: serviceName,
-        [ATTR_SERVICE_VERSION]: serviceVersion,
-    }),
+    serviceName: serviceName,
     traceExporter,
     instrumentations: [getNodeAutoInstrumentations({
         // Disable noisy filesystem instrumentation

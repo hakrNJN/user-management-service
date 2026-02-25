@@ -7,7 +7,7 @@
     "start": "node --require ./dist/infrastructure/observability/tracer.js dist/main.js",
     "dev": "ts-node-dev --watch --respawn --transpile-only --require ./src/infrastructure/observability/tracer.ts --env-file=.env.example src/main.ts",
     "build": "tsc",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "jest --config jest.e2e.config.js",
