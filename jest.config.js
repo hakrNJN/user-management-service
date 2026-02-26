@@ -4,12 +4,17 @@ dotenv.config({ path: '.env.test', override: true });
 
 module.exports = {
   preset: 'ts-jest',
-      globalSetup: './tests/jest.global-setup.ts',
-    globalTeardown: './tests/jest.global-teardown.ts',
-    testEnvironment: 'node',
-  roots: ['<rootDir>/tests'],
+  testEnvironment: 'node',
+  roots: ['<rootDir>/tests/unit'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {
     '^@src/(.*)$': '<rootDir>/src/$1',
   },
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/main.ts',
+    '!src/**/*.d.ts',
+    '!src/infrastructure/observability/tracer.ts',
+  ],
+  coverageReporters: ['text', 'text-summary', 'lcov'],
 };
